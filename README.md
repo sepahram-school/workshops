@@ -1,11 +1,8 @@
-Here’s a suggested setup for your new repo:
-
----
-
-**Quick description (≈200 chars):**
 # Sepahram Data Eng School - Short Workshops
 
 Welcome to the **Short Workshops for Data Engineers** repository!  
+Sepahram Data Eng : [Sepahram.ir](https://Sepahram.ir)
+Youtube Channel : [Sepahram Data Engineering School](https://www.youtube.com/@Sepahram.School)
 This repo is designed to help you explore a variety of tools, technologies, and projects in the data engineering ecosystem through hands-on exercises.
 
 ## Purpose
