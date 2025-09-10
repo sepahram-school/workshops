@@ -6,6 +6,7 @@ services:
     container_name: jupyter
     ports:
       - "8889:8888"  # Jupyter notebook (using 8889 to avoid conflicts)
+      - "4040:4040"  
     volumes:
       - ../notebooks:/opt/bitnami/spark/notebooks
       - ../data:/opt/jupyter/data
