@@ -1,8 +1,4 @@
-Perfect! I can now update the **Medium-style tutorial** to include your **actual Spark setup code** and make the guide fully aligned with a hands-on workflow. Here's the complete revised post:
-
----
-
-# Building a Lakehouse with LakeKeeper, MinIO, Spark / PySpark, StarRocks, and Trino
+### Building a Lakehouse with LakeKeeper, MinIO, Spark / PySpark, StarRocks, and Trino
 
 In this guide, we’ll walk through the complete process of setting up a **modern Lakehouse** environment from scratch. We will use **LakeKeeper** as our catalog service, **MinIO** as object storage, **Spark / PySpark** for data processing, and **StarRocks / Trino** for querying and analytics. This setup provides a full end-to-end environment to **insert, query, and explore data** in a transactional, schema-aware Lakehouse.
 
@@ -146,7 +142,6 @@ rows = cur.fetchall()
 **StarRocks example:**
 
 ```python
-
 CATALOG_URL = "http://lakekeeper:8181/catalog"
 STARROCKS_URI = "starrocks://root@starrocks:9030"
 WAREHOUSE = "sepahram" 
@@ -181,12 +176,12 @@ with engine.connect() as connection:
     # Use the catalog and namespace
     connection.execute(text("SET CATALOG lakekeeper"))
     connection.execute(text("USE banking"))
-    
+
     # Execute the query
     result = connection.execute(
         text("SELECT * FROM source_transactions LIMIT 10")
     ).fetchall()
-    
+
     # Get column names
     columns = [col[0] for col in connection.execute(text("SELECT * FROM source_transactions LIMIT 1")).keys()]
 
