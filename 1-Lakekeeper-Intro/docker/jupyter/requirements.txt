@@ -1,0 +1,17 @@
+pyiceberg>=0.9.1
+pandas>=2.3.1
+numpy>=2.3.1
+matplotlib>=3.10.3
+seaborn>=0.13.2
+jupyter>=1.1.1
+notebook>=7.4.4
+ipykernel>=6.29.5
+pyarrow>=21.0.0
+pytest>=8.4.1
+duckdb>=1.3.2
+trino>=0.335.0
+starrocks>=1.2.2
+requests>=2.31.0
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0 
+pyspark==3.5.6
