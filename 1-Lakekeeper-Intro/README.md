@@ -1,228 +1,248 @@
-# Iceberg Ingestion Pipeline - Complete Guide
-
-**🚀 Quick Workflow:**
-
-1. **Start the Infrastructure**
-   - Open a terminal and run:
-     ```bash
-     cd docker
-     docker-compose -f compose-lakekeeper-pyiceberg.yaml up -d
-     ```
-   - See [Infrastructure Setup](#infrastructure-setup) for details.
-
-2. **Access Jupyter Notebooks**
-   - Go to [http://localhost:8889](http://localhost:8889) in your browser.
-   - Use the notebooks in the `notebooks` folder (visible in the Jupyter UI) to set up the Iceberg tables (e.g., `setup_query_fake_seclink_table.ipynb`).
-   - See [Table Setup and Configuration](#table-setup-and-configuration) for more info.
-
-3. **Test Kafka Consumer**
-   - In the Jupyter UI, open and run `test_kafka_consumer.ipynb` (provided in the notebooks folder) to verify you can connect to your Kafka broker and see messages.
-   - See [Testing the Kafka Consumer](#testing-the-kafka-consumer) for more info.
-
-4. **Start Ingestion**
-   - Once tables are set up and Kafka is verified, run the main ingestion script from Docker:
-     ```bash
-     python debezium_kafka_consumer.py
-     ```
-   - (You can do this inside the appropriate Docker container or from your host if dependencies are installed.)
-   - See [Data Ingestion with Debezium](#data-ingestion-with-debezium) for details.
+Perfect! I can now update the **Medium-style tutorial** to include your **actual Spark setup code** and make the guide fully aligned with a hands-on workflow. Here's the complete revised post:
 
 ---
 
-## 📋 Prerequisites
+# Building a Lakehouse with LakeKeeper, MinIO, Spark / PySpark, StarRocks, and Trino
 
-1. **Docker & Docker Compose**: For running Lakekeeper, MinIO, and PostgreSQL
-2. **Python 3.8+**: For running the Python scripts and notebooks
-3. **Jupyter**: For interactive data analysis
-4. **Kafka**: For real-time data streaming (optional for testing)
+In this guide, we’ll walk through the complete process of setting up a **modern Lakehouse** environment from scratch. We will use **LakeKeeper** as our catalog service, **MinIO** as object storage, **Spark / PySpark** for data processing, and **StarRocks / Trino** for querying and analytics. This setup provides a full end-to-end environment to **insert, query, and explore data** in a transactional, schema-aware Lakehouse.
 
-## Infrastructure Setup
+---
 
-Start all services including Lakekeeper, MinIO, and PostgreSQL:
+## 1. Prerequisites
+
+Before you start, ensure you have:
+
+- Docker and Docker Compose installed
+
+- Basic familiarity with SQL and Python
+
+- At least 8–16GB RAM for running multiple containers
+
+Our environment uses containers for all services, making it easy to reproduce on any machine.
+
+---
+
+## 2. Docker Compose Overview
+
+Key services in the Compose setup:
+
+- **Jupyter Notebook**: Runs Spark + PySpark notebooks for experimentation (port `8889`).
+
+- **LakeKeeper**: Catalog service managing Iceberg metadata, backed by Postgres (port `8181`).
+
+- **PostgreSQL**: Stores catalog metadata (port `5454`).
+
+- **MinIO**: S3-compatible object storage for Iceberg table data (ports `9000` API, `9001` Console).
+
+- **Trino**: SQL query engine for Iceberg tables (port `9999`).
+
+- **StarRocks**: Analytical engine for Iceberg-managed data (ports `8030`, `9030`).
+
+The Compose file orchestrates service dependencies, ensures readiness, and persists data using volumes.
+
+---
+
+## 3. Bootstrapping the Lakehouse
+
+1. **Start Docker Compose**:
+
 ```bash
-cd docker
-docker-compose -f compose-lakekeeper-pyiceberg.yaml up -d
+docker-compose up -d
 ```
 
-## 📊 Table Setup and Configuration
+2. **Run migrations**: The `migrate` service initializes the Postgres metadata database.
 
-### Table Schema
+3. **Bootstrap LakeKeeper**: Accept terms and initialize the catalog (`bootstrap` service).
 
-The `fake_seclink` table has the following schema:
-```sql
-CREATE TABLE fake_seclink (
-    Id INT,
-    TelegramCode INT,
-    Source INT,
-    Destination INT,
-    DateIn TIMESTAMP,
-    DateOut TIMESTAMP,
-    Body VARCHAR(max)
-);
-```
+4. **Create default warehouse**: The `initialwarehouse` service sets up the S3 bucket for Iceberg tables in MinIO.
 
-- **Primary Partition**: `month(DateIn)` - Time-based partitioning
-- **Benefits**: Efficient time-based queries and data organization
+---
 
-### Configuration
+## 4. Spark / PySpark Setup
+
+Here’s a complete PySpark configuration for connecting to **LakeKeeper and Iceberg**:
+
 ```python
-# Iceberg Configuration
+import pyspark
+from pyspark.conf import SparkConf
+from pyspark.sql import SparkSession
+import pandas as pd
+
+# LakeKeeper catalog and warehouse URL
 CATALOG_URL = "http://lakekeeper:8181/catalog"
-WAREHOUSE = "irisa-ot"
-NAMESPACE = "irisa"
-TABLE_NAME = "fake_seclink"
-```
+WAREHOUSE = "sepahram"
 
-### Setting Up the Table
+SPARK_VERSION = pyspark.__version__
+SPARK_MINOR_VERSION = '.'.join(SPARK_VERSION.split('.')[:2])
+ICEBERG_VERSION = "1.9.2"
+HADOOP_VERSION = "3.4.2"
 
-**Recommended:**
-- Access Jupyter at [http://localhost:8889](http://localhost:8889)
-- Open and run `setup_query_fake_seclink_table.ipynb` (or other notebooks in the notebooks folder)
-- This will:
-  1. Connect to the Lakekeeper catalog
-  2. Create the `irisa` namespace if it doesn't exist
-  3. Create the `fake_seclink` table with proper schema and partitioning
-  4. Generate and insert 10,000 sample records
-  5. Run test queries to verify the setup
-  6. Provide interactive data exploration
+spark_config = SparkConf().setMaster('local[*]').setAppName("Iceberg-REST-Cluster")
 
-**Alternative:**
-- Convert the notebook to a Python script and run it:
-  ```bash
-  jupyter nbconvert --to python setup_query_fake_seclink_table.ipynb
-  python setup_query_fake_seclink_table.py
-  ```
-
-#### Expected Output
-```
-🔧 Configuration:
-   - Catalog URL: http://lakekeeper:8181/catalog
-   - Warehouse: irisa-ot
-   - Namespace: irisa
-   - Table: fake_seclink
-
-✅ Table created successfully!
-   - Table: irisa.fake_seclink
-   - Location: s3://irisa-warehouse/irisa/fake_seclink
-   - Format: 2
-   - Partitioning: 1 fields
-
-✅ Generated 10000 fake records
-📅 Date range: 2024-01-01 to 2024-06-30
-```
-
-### Querying the Data
-
-See the notebook for full examples, or use DuckDB directly:
-```python
-import duckdb
-
-con = duckdb.connect(":memory:")
-con.install_extension("iceberg")
-con.load_extension("iceberg")
-con.sql("""
-    ATTACH 'irisa-ot' AS irisa_datalake (
-        TYPE ICEBERG,
-        ENDPOINT 'http://lakekeeper:8181/catalog',
-        TOKEN ''
-    )
-""")
-result = con.sql("SELECT COUNT(*) FROM irisa_datalake.irisa.fake_seclink").fetchone()
-print(f"Total records: {result[0]}")
-```
-
-## Testing the Kafka Consumer
-
-- In Jupyter, open and run `test_kafka_consumer.ipynb` (in the notebooks folder)
-- Update the configuration cell with your Kafka broker and topic
-- Run all cells to see messages printed in real-time
-- Use this to verify connectivity and topic data before running the main ingestion
-
-## Data Ingestion with Debezium
-
-### Understanding Debezium Messages
-
-The consumer expects Debezium messages in this format:
-```json
-{
-  "source": { ... },
-  "payload": {
-    "before": null,
-    "after": { ... },
-    "op": "c"
-  }
+# Catalog configuration
+config = {
+    "spark.sql.catalog.lakekeeper": "org.apache.iceberg.spark.SparkCatalog",
+    "spark.sql.catalog.lakekeeper.type": "rest",
+    "spark.sql.catalog.lakekeeper.uri": CATALOG_URL,
+    "spark.sql.catalog.lakekeeper.warehouse": WAREHOUSE,
+    "spark.sql.defaultCatalog": "lakekeeper",
 }
+
+for k, v in config.items():
+    spark_config = spark_config.set(k, v)
+
+# Create SparkSession
+spark = SparkSession.builder.config(conf=spark_config).getOrCreate()
+
+# Use the catalog
+spark.sql("USE lakekeeper")
 ```
 
-### Running the Consumer
+---
 
-1. **Configure Kafka Settings** in `debezium_kafka_consumer.py`:
-   ```python
-   KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
-   KAFKA_TOPIC = "fake_sl.dbo.fake_seclink"
-   KAFKA_GROUP_ID = "iceberg-consumer-group"
-   ```
-2. **Start the Consumer**:
-   ```bash
-   python debezium_kafka_consumer.py
-   ```
-3. **Monitor the Logs** for ingestion status and errors
+### 4.1 Querying Data with PySpark
 
-## 🧪 Testing and Validation
+Example: Top 10 merchants by total sales:
 
-- **Table Setup Test**: Use the Jupyter notebook to create and verify the table
-- **Consumer Test**: Use `test_kafka_consumer.ipynb` to verify Kafka connectivity
-- **Ingestion Test**: Use `test_debezium_consumer.py` or the main consumer for end-to-end testing
+```python
+df = spark.sql("""
+SELECT 
+    merchantName, 
+    SUM(amount) AS total_sales, 
+    COUNT(*) AS transaction_count
+FROM banking.source_transactions
+GROUP BY merchantName
+ORDER BY total_sales DESC
+LIMIT 10
+""").toPandas()
 
-## ⚙️ Configuration Options
-
-- See the code and notebooks for batch size, timeout, and other settings
-- Example:
-  ```python
-  BATCH_SIZE = 100
-  BATCH_TIMEOUT_SECONDS = 30
-  ```
-
-## 🛠️ Troubleshooting
-
-- **Lakekeeper Connection Failed**: Check Docker services and network
-- **Table Not Found**: Rerun the setup notebook
-- **Kafka Issues**: Check broker, topic, and network
-- **Timestamp Parsing Errors**: Check message format and timezone
-- **Debug Mode**: Set logging to DEBUG in the scripts
-
-## 📁 File Structure
-
-```
-ingestion-pipeline/
-├── docker/
-│   ├── jupyter/
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
-│   ├── compose-lakekeeper-pyiceberg.yaml
-│   ├── create-default-warehouse.json
-│   └── requirements.txt
-├── notebooks/
-│   ├── setup_query_fake_seclink_table.ipynb
-│   └── test_kafka_consumer.ipynb
-├── debezium_kafka_consumer.py
-├── test_debezium_consumer.py
-├── README.md
-├── requirements.txt
+# Display nicely
+df
 ```
 
-## 🔗 Related Resources
+This converts the Spark SQL result to a pandas DataFrame for easy viewing in Jupyter.
 
-- [Apache Iceberg Documentation](https://iceberg.apache.org/docs/)
-- [Debezium Documentation](https://debezium.io/documentation/)
-- [PyIceberg Documentation](https://py.iceberg.apache.org/)
-- [Kafka Python Client](https://kafka-python.readthedocs.io/)
-- [DuckDB Documentation](https://duckdb.org/docs/)
+---
 
-## 📞 Support
+## 5. Querying with Trino and StarRocks
 
-For issues or questions:
-1. Check the troubleshooting section above
-2. Review the logs for error messages
-3. Verify all services are running correctly
-4. Test with the provided test scripts 
+**Trino example:**
+
+```python
+# This CATALOG_URL works for the "docker compose" testing and development environment
+# Change 'lakekeeper' if you are not running on "docker compose" (f. ex. 'localhost' if Lakekeeper is running locally).
+CATALOG_URL = "http://lakekeeper:8181/catalog"
+TRINO_URI = "http://trino:8080"
+WAREHOUSE = "sepahram"
+
+from trino.dbapi import connect
+
+conn = connect(host=TRINO_URI, user="trino")
+cur = conn.cursor()
+cur.execute("SELECT * FROM lakekeeper.banking.source_transactions LIMIT 10")
+rows = cur.fetchall()
+```
+
+**StarRocks example:**
+
+```python
+
+CATALOG_URL = "http://lakekeeper:8181/catalog"
+STARROCKS_URI = "starrocks://root@starrocks:9030"
+WAREHOUSE = "sepahram" 
+
+from sqlalchemy import create_engine, text
+engine = create_engine(STARROCKS_URI)
+
+with engine.connect() as connection:
+    connection.execute(text("DROP CATALOG IF EXISTS lakekeeper"))
+    connection.execute(
+        text(f"""
+        CREATE EXTERNAL CATALOG lakekeeper
+        PROPERTIES
+        (
+            "type" = "iceberg",
+            "iceberg.catalog.type" = "rest",
+            "iceberg.catalog.uri" = "{CATALOG_URL}",
+            "iceberg.catalog.warehouse" = "{WAREHOUSE}",
+            "aws.s3.region" = "local",
+            "aws.s3.enable_path_style_access" = "true",
+            "aws.s3.endpoint" = "http://minio:9000",
+            "aws.s3.access_key" = "minio-root-user",
+            "aws.s3.secret_key" = "minio-root-password"
+        )
+        """)
+    )
+    connection.execute(text("SET CATALOG lakekeeper"))
+
+import pandas as pd
+
+with engine.connect() as connection:
+    # Use the catalog and namespace
+    connection.execute(text("SET CATALOG lakekeeper"))
+    connection.execute(text("USE banking"))
+    
+    # Execute the query
+    result = connection.execute(
+        text("SELECT * FROM source_transactions LIMIT 10")
+    ).fetchall()
+    
+    # Get column names
+    columns = [col[0] for col in connection.execute(text("SELECT * FROM source_transactions LIMIT 1")).keys()]
+
+# Convert to pandas DataFrame
+df = pd.DataFrame(result, columns=columns)
+
+# Display the DataFrame nicely (works in Jupyter/console)
+df
+```
+
+Both engines query the Iceberg tables registered in LakeKeeper.
+
+---
+
+## 6. Exploring Storage in MinIO
+
+- Access MinIO Console at `http://localhost:9001` using the root credentials.
+
+- Browse bucket `sepahram-warehouse` to see **Iceberg files organized by namespace/table/snapshot**.
+
+- Iceberg’s layout ensures **schema evolution, snapshots, and atomic updates**.
+
+---
+
+## 7. Exploring Metadata in LakeKeeper
+
+- Connect to Postgres via DBeaver: `postgres://postgres:postgres@localhost:5454/postgres`
+
+- Inspect tables like `catalog_namespace`, `catalog_table`, `catalog_snapshot` to explore inserted data.
+
+- Snapshots match the Iceberg data stored in MinIO, ensuring full traceability.
+
+---
+
+## 8. Best Practices
+
+- Use **catalog-aware engines** (Spark, Trino, StarRocks) to query Iceberg tables.
+
+- Enable **S3 path-style access** in MinIO for compatibility with Iceberg.
+
+- Backup the Postgres metadata database regularly.
+
+- Monitor container logs to troubleshoot ingestion and query issues.
+
+---
+
+This setup provides a **fully functional Lakehouse environment**, combining:
+
+- **Metadata management**: LakeKeeper
+
+- **Object storage**: MinIO
+
+- **Processing**: Spark / PySpark
+
+- **Query engines**: Trino and StarRocks
+
+It’s ideal for experimentation, analytics, and production-grade workflows.
+
+---
