@@ -8,6 +8,8 @@ Youtube Channel : [Sepahram Data Engineering School](https://www.youtube.com/@Se
 
 This repo is designed to help you explore a variety of tools, technologies, and projects in the data engineering ecosystem through hands-on exercises.
 
+
+
 ## Purpose
 
 - Learn and practice key data engineering tools in short, focused workshops.
