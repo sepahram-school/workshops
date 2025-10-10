@@ -1,0 +1,48 @@
+volumes:
+  db_data:
+  pgadmin_data:
+    
+networks: 
+  services:
+    name: sepahram_workshops_network
+
+services:
+  postgres:
+    container_name: postgres
+    hostname: postgres
+    image: docker.arvancloud.ir/library/postgres:18
+    volumes:
+      - ./db_data:/var/lib/postgresql
+      - ./postgres-init:/docker-entrypoint-initdb.d  # Mounting the init script
+      # - ./dump:/dump
+    environment:
+      - POSTGRES_PASSWORD=postgres123
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=sepahram
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    networks:
+      - services
+    ports:
+      - 5434:5432
+    restart: always
+
+  pgadmin:
+    # https://www.pgadmin.org/docs/pgadmin4/latest/container_deployment.html
+    container_name: pgadmin4
+    hostname: pgadmin4
+    image: dpage/pgadmin4
+    restart: always
+    profiles:
+      - pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: pgadmin123
+    volumes:
+      #- ./pgadmin_data:/data
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    networks:
+      - services 
+
+
