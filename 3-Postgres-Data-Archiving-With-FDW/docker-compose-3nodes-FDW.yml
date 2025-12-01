@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # Main PostgreSQL instance (Active data + FDW coordinator)
+  postgres1:
+    image: docker.arvancloud.ir/library/postgres:18
+    container_name: pg_main
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: appdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg1_data:/var/lib/postgresql/data
+    networks:
+      - pg_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Archive instance for 2022 data
+  postgres_2023:
+    image: docker.arvancloud.ir/library/postgres:18
+    container_name: pg_archive_2024
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: archive_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg2_data:/var/lib/postgresql/data
+    networks:
+      - pg_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Archive instance for 2021 data
+  postgres_2024:
+    image: docker.arvancloud.ir/library/postgres:18
+    container_name: pg_archive_2023
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: archive_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg3_data:/var/lib/postgresql/data
+    networks:
+      - pg_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  pg_network:
+    driver: bridge
+
+volumes:
+  pg1_data:
+  pg2_data:
+  pg3_data:
