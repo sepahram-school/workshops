@@ -4,6 +4,8 @@
 
 As databases grow, managing historical data becomes a critical operational challenge. Application teams often need to retain years of data for auditing and compliance, but this data is rarely modified, mostly just queried occasionally. This creates a perfect use case for data archiving.
 
+<img title="" src="file:///images/FDW2.webp" alt="FDW2.webp" width="379" data-align="center">
+
 Traditional archiving approaches have limitations:
 
 - **Detached partitions**: Data becomes inaccessible without reattaching
@@ -11,8 +13,6 @@ Traditional archiving approaches have limitations:
 - **Separate clusters**: Application needs multiple connection endpoints
 
 This tutorial presents a **fourth approach**: using PostgreSQL's Foreign Data Wrapper (FDW) with partitioned tables to create a transparent, distributed archive system.
-
-![20190430225931.png](images\20190430225931.png)
 
 ## What is Foreign Data Wrapper (FDW)?
 
@@ -25,7 +25,7 @@ Foreign Data Wrapper is a PostgreSQL extension that allows you to:
 
 **The magic**: When you query a foreign table, PostgreSQL automatically connects to the remote server, executes the query there, and returns the results. Your application sees it as a single, unified database.
 
-![postgres_fdw-1024x677.png](images\postgres_fdw-1024x677.png)
+
 
 ## Architecture Overview
 
@@ -64,6 +64,8 @@ We'll build a three-tier archive system:
 4. **Faster restores**: Restore only what you need
 5. **Easy decommissioning**: Drop old archives by removing instances
 6. **Distributed storage**: Spread data across multiple servers
+
+![data_archiving-fdw.png](images\data_archiving-fdw.png)
 
 ## Prerequisites
 
@@ -493,6 +495,8 @@ Expected output:
 ```
 
 **The magic**: Single query across three separate database instances!
+
+![FDW.jpg](images\FDW.jpg)
 
 ## Step 6: Advanced Operations
 
