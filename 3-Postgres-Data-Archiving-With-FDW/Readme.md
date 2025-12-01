@@ -25,8 +25,6 @@ Foreign Data Wrapper is a PostgreSQL extension that allows you to:
 
 **The magic**: When you query a foreign table, PostgreSQL automatically connects to the remote server, executes the query there, and returns the results. Your application sees it as a single, unified database.
 
-
-
 ## Architecture Overview
 
 We'll build a three-tier archive system:
@@ -496,7 +494,7 @@ Expected output:
 
 **The magic**: Single query across three separate database instances!
 
-![FDW.jpg](images\FDW.jpg)
+![FDW.jpg](images/FDW.jpg)
 
 ## Step 6: Advanced Operations
 
