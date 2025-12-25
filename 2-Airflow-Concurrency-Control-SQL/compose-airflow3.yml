@@ -119,7 +119,7 @@ services:
     container_name: transaction_db
     image: docker.arvancloud.ir/library/postgres:18
     volumes:
-      - tx_pg_data:/var/lib/postgresql/data
+      - tx_pg_data:/var/lib/postgresql
     environment:
       - POSTGRES_PASSWORD=airflow
       - POSTGRES_USER=airflow
