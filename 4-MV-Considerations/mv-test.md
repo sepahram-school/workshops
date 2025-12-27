@@ -295,7 +295,7 @@ ORDER BY source, category;
 SET allow_experimental_kafka_offsets_storage_in_keeper = 1; 
 CREATE TABLE  ......
 ENGINE = Kafka( 'localhost:19092', 'topic', 'consumer', 'JSONEachRow’) 
-SETTINGS kafka_keeper_path = '/clickhouse/{database}/kafka’,
+SETTINGS kafka_keeper_path = '/clickhouse/test/kafka’,
  kafka_replica_name = 'r1';
 
 ```
