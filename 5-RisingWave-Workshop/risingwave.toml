@@ -1,0 +1,38 @@
+[server]
+# The address that the server binds to.
+# Default: 0.0.0.0:4566 for frontend, 0.0.0.0:5688 for compute, 0.0.0.0:1222 for compactor
+heartbeat_interval_ms = 1000
+max_heartbeat_interval_ms = 60000
+
+[storage]
+# The storage type used by RisingWave.
+# Using rustfs (S3-compatible) instead of minio
+# Format: hummock+s3://access_key:secret_key@host:port/bucket
+# For memory storage, use: memory
+
+[storage.s3]
+# S3-compatible storage configuration using rustfs
+region = "us-east-1"
+access_key = "admin"
+secret_access_key = "admin"
+endpoint = "http://rustfs:9000"
+use_ssl = false
+force_path_style = true
+
+[meta]
+# The meta service address.
+# Default: http://0.0.0.0:5690
+
+[streaming]
+# Streaming related configurations
+actor_runtime_worker_threads_num = 8
+enable_jaeger_tracing = false
+
+[batch]
+# Batch processing related configurations
+enable_barrier_read = true
+
+[logging]
+# Logging configuration
+level = "INFO"
+enable_jaeger_tracing = false
