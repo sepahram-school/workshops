@@ -40,18 +40,12 @@ git pull
 
 ## Workshop List
 
-| Sequence | Workshop Topic                                                         | Status        | Description                                                     |
-| -------- | ---------------------------------------------------------------------- | ------------- | --------------------------------------------------------------- |
-| 1        | [Postgres Physical Address](1-Postgres-Page-Heap-Concepts)             | **Published** | Learn data testing and validation workflows.                    |
-| 2        | [2-Airflow-Concurrency-Control-SQL](2-Airflow-Concurrency-Control-SQL) | **Published** | Airflow3 Concurrency Tips for SQL related Operations            |
-| 3        | Spark Quick Setup                                                      | Coming soon   | Set up Spark clusters and run distributed jobs.                 |
-| 4        | Redpanda Connect Intro                                                 | Coming soon   | Explore Redpanda as a Kafka alternative.                        |
-| 5        | Setting Kafka Up & Running                                             | Coming soon   | Deploy and use Kafka for streaming pipelines.                   |
-| 6        | DuckDB                                                                 | Coming soon   | Explore DBT fundamentals and project setup.                     |
-| 7        | DBT Quick Intro                                                        | Coming soon   | Lightweight analytical database exercises.                      |
-| 8        | Memgraph                                                               | Coming soon   | Hands-on with graph databases.                                  |
-| 9        | PuppyGraph                                                             | Coming soon   | Explore graph data and queries.                                 |
-| 11       | Lakehouse Intro                                                        | Coming soon   | Learn the main concepts of apache Iceberg - A hands-On Tutorial |
-|          |                                                                        |               |                                                                 |
+| Sequence | Workshop Topic                                                         | Status        | Description                                                     | Tools/DBs |
+| -------- | ---------------------------------------------------------------------- | ------------- | --------------------------------------------------------------- | --------- |
+| 1        | [Postgres Physical Address](1-Postgres-Page-Heap-Concepts)             | **Published** | Understanding PostgreSQL's base directory structure and how database files are organized on disk | PostgreSQL |
+| 2        | [2-Airflow-Concurrency-Control-SQL](2-Airflow-Concurrency-Control-SQL) | **Published** | Solving concurrency issues in Airflow DAGs when processing shared database state | Apache Airflow, PostgreSQL |
+| 3        | [3-Postgres-Data-Archiving-With-FDW](3-Postgres-Data-Archiving-With-FDW) | **Published** | Building distributed data archive systems using PostgreSQL Foreign Data Wrappers | PostgreSQL, FDW |
+| 4        | [4-MV-Considerations](4-MV-Considerations)                             | **Published** | Understanding ClickHouse materialized views and handling duplicate data issues | ClickHouse, Kafka, Redpanda |
+| 5        | [5-RisingWave-Workshop](5-RisingWave-Workshop)                         | **Published** | Building real-time streaming pipelines with RisingWave using pure SQL | RisingWave, Kafka, Redpanda, ClickHouse, PostgreSQL, RustFS |
 
 ---
