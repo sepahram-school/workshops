@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Stage folder - non-production-ready workshops
+stage/
+
+# AGENTS.md - AI agent instructions
+AGENTS.md
