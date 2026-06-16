@@ -1,0 +1,28 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+temporal.exe
+*.egg-info
+AGENTS.md
+# Virtual environments
+.venv
+
+# Runtime data (downloaded Excel files, generated CSVs)
+data/
+
+# AI assistant instructions (local-only, not for version control)
+AGENTS.md
+
+# Temporal CLI binary (download separately, see README section 3)
+temporal.exe
+temporal
+temporal_linux_amd64
+temporal_darwin_arm64
+temporal_darwin_amd64
+
+# Temporal server runtime database
+temporal.db
+

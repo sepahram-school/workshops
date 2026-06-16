@@ -12,7 +12,7 @@ services:
     hostname: postgres
     image: docker.arvancloud.ir/library/postgres:18
     volumes:
-      - ./db_data:/var/lib/postgresql
+      - ./db_data:/var/lib/postgresql/
       - ./postgres-init:/docker-entrypoint-initdb.d  # Mounting the init script
       # - ./dump:/dump
     environment:

@@ -107,10 +107,10 @@ services:
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "airflow"]
+      test: ["CMD", "pg_isready", "-U", "airflow", "-d", "transactions", "-h", "localhost"]
       interval: 10s
       retries: 5
-      start_period: 5s
+      start_period: 30s
     restart: always
     networks:
       - sepahram_net
