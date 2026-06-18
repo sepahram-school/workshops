@@ -6,6 +6,20 @@ All benchmarks were run in isolation — one cluster active at a time, with full
 
 ---
 
+## Test Environment
+
+| Spec | Value |
+|------|-------|
+| **Machine** | DELL Precision 5520 |
+| **CPU** | Intel Core i7-7820HQ @ 2.90GHz |
+| **RAM** | 32.0 GB (31.9 GB usable) |
+| **OS** | Windows 11 Pro (64-bit) |
+| **Docker** | Docker Desktop |
+| **Python** | 3.13.6 via uv |
+| **Date** | 2026-06-19 |
+
+---
+
 ## The Systems at a Glance
 
 | System | Language | License | Origin | Year | Key Differentiator |
