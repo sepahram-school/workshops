@@ -1,0 +1,5 @@
+FROM docker.arvancloud.ir/alpine:3.20
+COPY librefs /usr/local/bin/librefs
+RUN chmod +x /usr/local/bin/librefs
+EXPOSE 9000 9001
+ENTRYPOINT ["librefs"]

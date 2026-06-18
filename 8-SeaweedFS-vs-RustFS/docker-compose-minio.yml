@@ -1,0 +1,23 @@
+﻿# ============================================
+# MinIO Single-Node (Baseline)
+# ============================================
+# MinIO as baseline reference for comparison.
+# Port 9200 to avoid RustFS port 9000 conflict.
+#
+# Start with: docker compose -f docker-compose-minio.yml up -d
+# Stop with:  docker compose -f docker-compose-minio.yml down -v
+# ============================================
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9200:9000"
+      - "9201:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123
+    volumes:
+      - ./data-minio:/data

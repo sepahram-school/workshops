@@ -1,0 +1,10 @@
+data/
+results/
+.venv/
+*.pdf
+data-seaweedfs/
+data-rustfs/
+data-librefs/
+data-minio/
+__pycache__/
+*.pyc

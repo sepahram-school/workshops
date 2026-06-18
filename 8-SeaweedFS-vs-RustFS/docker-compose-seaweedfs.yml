@@ -1,0 +1,181 @@
+# ============================================
+# SeaweedFS 3-Node Cluster with RF=1
+# ============================================
+# Replication factor 1 (defaultReplication=001) means:
+#   - Every object stored on 1 volume node
+#   - No replication (RF=1 = 2 total copies with rack awareness)
+#
+# 3-node Raft master cluster for quorum under concurrent load.
+# Filer has healthcheck to prevent S3 gateway starting before
+# gRPC channel is ready.
+#
+# Start with: docker compose -f docker-compose-seaweedfs.yml up -d
+# Stop with:  docker compose -f docker-compose-seaweedfs.yml down -v
+# ============================================
+
+services:
+  # ===== Master Node 1 (Leader) =====
+  master1:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-master1
+    command: master -ip=master1 -port=9333 -defaultReplication=001 -peers=master1:9333,master2:9334,master3:9335
+    ports:
+      - "9333:9333"
+    networks:
+      - seaweedfs-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9333/cluster/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 15s
+
+  # ===== Master Node 2 =====
+  master2:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-master2
+    command: master -ip=master2 -port=9334 -defaultReplication=001 -peers=master1:9333,master2:9334,master3:9335
+    networks:
+      - seaweedfs-net
+    depends_on:
+      master1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9334/cluster/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 15s
+
+  # ===== Master Node 3 =====
+  master3:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-master3
+    command: master -ip=master3 -port=9335 -defaultReplication=001 -peers=master1:9333,master2:9334,master3:9335
+    networks:
+      - seaweedfs-net
+    depends_on:
+      master1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9335/cluster/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 15s
+
+  # ===== Volume Node 1 =====
+  volume1:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-volume1
+    command: volume -ip=volume1 -mserver=master1:9333,master2:9334,master3:9335 -port=8080 -dir=/data -max=0
+    volumes:
+      - ./data-seaweedfs/volume1:/data
+    networks:
+      - seaweedfs-net
+    depends_on:
+      master1:
+        condition: service_healthy
+      master2:
+        condition: service_healthy
+      master3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://volume1:8080/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
+  # ===== Volume Node 2 =====
+  volume2:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-volume2
+    command: volume -ip=volume2 -mserver=master1:9333,master2:9334,master3:9335 -port=8080 -dir=/data -max=0
+    volumes:
+      - ./data-seaweedfs/volume2:/data
+    networks:
+      - seaweedfs-net
+    depends_on:
+      master1:
+        condition: service_healthy
+      master2:
+        condition: service_healthy
+      master3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://volume2:8080/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
+  # ===== Volume Node 3 =====
+  volume3:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-volume3
+    command: volume -ip=volume3 -mserver=master1:9333,master2:9334,master3:9335 -port=8080 -dir=/data -max=0
+    volumes:
+      - ./data-seaweedfs/volume3:/data
+    networks:
+      - seaweedfs-net
+    depends_on:
+      master1:
+        condition: service_healthy
+      master2:
+        condition: service_healthy
+      master3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://volume3:8080/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
+  # ===== Filer =====
+  # Provides POSIX filesystem namespace and S3 gateway backend
+  # -maxMB=256 limits per-upload chunk size to reduce master pressure
+  filer:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-filer
+    command: filer -ip=filer -master=master1:9333,master2:9334,master3:9335 -port=8888
+    ports:
+      - "8888:8888"
+    networks:
+      - seaweedfs-net
+    depends_on:
+      master1:
+        condition: service_healthy
+      master2:
+        condition: service_healthy
+      master3:
+        condition: service_healthy
+      volume1:
+        condition: service_healthy
+      volume2:
+        condition: service_healthy
+      volume3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8888/"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  # ===== S3 Gateway =====
+  # Exposes S3-compatible API for boto3, DuckDB, etc.
+  # Waits for filer healthcheck before starting
+  s3:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-s3
+    command: s3 -port=8333 -filer=filer:8888 -concurrentFileUploadLimit=100 -concurrentUploadLimitMB=1024
+    ports:
+      - "8533:8333"
+    networks:
+      - seaweedfs-net
+    depends_on:
+      filer:
+        condition: service_healthy
+
+networks:
+  seaweedfs-net:
+    driver: bridge

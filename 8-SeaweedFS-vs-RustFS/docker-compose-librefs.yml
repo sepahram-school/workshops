@@ -1,0 +1,54 @@
+# ============================================
+# libreFS 3-Node Distributed Cluster
+# ============================================
+# libreFS is a community-maintained fork of MinIO (AGPLv3),
+# preserving WebUI, LDAP/OIDC, and distributed erasure coding.
+# Forked from MinIO at RELEASE.2025-04-22T22-12-26Z.
+#
+# Start with: docker compose -f docker-compose-librefs.yml up -d
+# Stop with:  docker compose -f docker-compose-librefs.yml down -v
+# ============================================
+
+services:
+  librefs-1:
+    image: librefs:local
+    container_name: librefs-1
+    command: server http://librefs-1/data http://librefs-2/data http://librefs-3/data --console-address ":9001"
+    ports:
+      - "9100:9000"
+      - "9101:9001"
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password123
+    volumes:
+      - ./data-librefs/node1:/data
+    networks:
+      - librefs-net
+
+  librefs-2:
+    image: librefs:local
+    container_name: librefs-2
+    command: server http://librefs-1/data http://librefs-2/data http://librefs-3/data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password123
+    volumes:
+      - ./data-librefs/node2:/data
+    networks:
+      - librefs-net
+
+  librefs-3:
+    image: librefs:local
+    container_name: librefs-3
+    command: server http://librefs-1/data http://librefs-2/data http://librefs-3/data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password123
+    volumes:
+      - ./data-librefs/node3:/data
+    networks:
+      - librefs-net
+
+networks:
+  librefs-net:
+    driver: bridge
