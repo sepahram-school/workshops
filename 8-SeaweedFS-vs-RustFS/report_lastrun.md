@@ -22,12 +22,12 @@ All benchmarks were run in isolation — one cluster active at a time, with full
 
 ## The Systems at a Glance
 
-| System | Language | License | Origin | Year | Key Differentiator |
-|--------|----------|---------|--------|------|--------------------|
-| **MinIO** | Go | AGPLv3 | MinIO, Inc. | 2015 | Reference S3 implementation; most production deployments |
-| **SeaweedFS** | Go | Apache 2.0 | Chris Lu (ex-Facebook) | 2015 | Distributed blob store with POSIX filer; designed for billions of small files |
-| **RustFS** | Rust | AGPLv3 | Community fork | 2024 | MinIO-compatible object store in Rust; memory safety guarantees |
-| **libreFS** | Go | AGPLv3 | Community fork of MinIO | 2025 | Preserves MinIO's open-source features (WebUI, LDAP, erasure coding) after MinIO moved them to proprietary AIStor |
+| System | Founded | Language | License | Key Differentiator |
+|--------|---------|----------|---------|--------------------|
+| **MinIO** | 2015 | Go | AGPLv3 | Reference S3 implementation; most production deployments |
+| **SeaweedFS** | 2015 | Go | Apache 2.0 | Distributed blob store with POSIX filer; designed for billions of small files |
+| **RustFS** | 2024 | Rust | AGPLv3 | MinIO-compatible object store in Rust; memory safety guarantees |
+| **libreFS** | 2025 | Go | AGPLv3 | Community fork preserving MinIO's open-source features (WebUI, LDAP, erasure coding) |
 
 **MinIO** started as an open-source S3-compatible store and became the de facto standard for data lakes. In 2025, MinIO moved enterprise features (WebUI, LDAP, distributed erasure coding) behind a proprietary paywall called AIStor, keeping only the core AGPLv3 server open source. This license change triggered the search for alternatives.
 
@@ -309,6 +309,57 @@ SeaweedFS RF=1 uses 2x more raw disk than erasure-coded systems for the same usa
 5. **RustFS consistent but slower** — 100% success, lower throughput ceiling
 6. **All systems 100% success** across all tested sizes (1mb, 16mb, 32mb)
 7. **SeaweedFS requires cluster restart** — gRPC connection pool degrades under sustained load
+
+---
+
+## SeaweedFS: Why the 5-Thread Limit Exists
+
+The 5-thread limit is **architectural, not configurational**. Every write in SeaweedFS requires a round-trip to the master to "assign a volume" before data can be stored:
+
+```
+S3 gateway → filer → master (assign volume) → volume node
+```
+
+With 20 concurrent threads each holding a `filer → master` gRPC connection open simultaneously, the master serializes all 20 assignments. The connections pile up waiting, hit the deadline timeout, and fail — even though the volume nodes and disk are sitting idle.
+
+With MinIO or RustFS, the thread talks directly to the server which owns the storage. No coordination step. 20 threads in parallel means 20 independent operations — there's no shared bottleneck.
+
+**Why 5 threads works:** At 5 threads the master can assign volumes fast enough that connections return before the deadline. At 10+ threads the queue depth grows faster than the master can drain it, and the first timeout triggers a cascade.
+
+**Why heavy mode works at 5 threads:** In the benchmark the heavy workload is 90%+ reads. Reads in SeaweedFS go `S3 gateway → filer → volume` — they bypass the master entirely, because volume location is already known. Only writes need master coordination. With 5 threads there might be only 2-3 concurrent writes at any moment, well within the master's capacity.
+
+**Can you raise it beyond 5 with the 3-master Raft cluster?** Somewhat — Raft spreads the assignment load across 3 masters, so you might get to 8-10 threads reliably. But you won't reach 20 because the filer itself becomes the next bottleneck: it maintains a single gRPC connection pool to the masters, and that pool has a fixed size. The `-concurrentFileUploadLimit=100` flag on the S3 gateway doesn't help because the constraint is in the filer layer below it.
+
+**The architectural trade-off is inherent, not a bug.** Even in a healthy SeaweedFS cluster, every S3 write goes through 4 hops vs MinIO/RustFS which are single-process — the S3 endpoint *is* the storage node. That extra coordination latency is part of SeaweedFS's design.
+
+---
+
+## RisingWave + S3: How SeaweedFS Fits
+
+RisingWave uses S3 in two distinct ways, and SeaweedFS's suitability differs for each:
+
+### How RisingWave Uses S3
+
+1. **Hummock state store (the critical path)** — Checkpoint snapshots are persisted to Hummock, which uses durable object storage as its backend via an LSM-tree architecture. This generates multipart uploads with 16 MB parts, where each SST file can reach 512 MB during deep compaction.
+
+2. **S3 sink (secondary)** — RisingWave can sink processed data directly to S3 as Parquet files via `CREATE SINK` with a configurable endpoint URL.
+
+### Why SeaweedFS is Risky for Hummock
+
+Hummock does **batched, large sequential writes** — favorable for SeaweedFS. But two hard problems remain:
+
+**Multipart upload overhead.** RisingWave uses multipart upload with 16 MB parts. A 512 MB SST file split into 32 parts means 32 sequential `assign volume` RPCs to the master per compaction task. Under concurrent compaction workers this becomes the same gRPC bottleneck observed in our benchmark.
+
+**ListObjectsV2 at scale.** RisingWave organizes SST files under different prefixes. SeaweedFS's filer handles `ListObjectsV2` through a metadata layer, and at tens of thousands of SST files this becomes a filer bottleneck.
+
+### Verdict by Use Case
+
+| RisingWave usage | SeaweedFS viable? | Why |
+|---|---|---|
+| Hummock state store (low-medium throughput) | **Maybe** | Large sequential writes help, but multipart + ListObjects at scale stress the filer |
+| Hummock state store (high throughput) | **No** | Concurrent multipart uploads hit the master bottleneck |
+| S3 sink (Parquet output) | **Yes** | Append-only, infrequent, large files — ideal for SeaweedFS |
+| Dev/staging environment | **Yes** | Apache 2.0, simple setup, POSIX bonus |
 
 ---
 

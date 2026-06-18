@@ -22,6 +22,17 @@ All benchmarks were run in isolation — one cluster active at a time, with full
 
 ---
 
+## The Systems at a Glance
+
+| System | Founded | Language | License | Key Differentiator |
+|--------|---------|----------|---------|--------------------|
+| **MinIO** | 2015 | Go | AGPLv3 | Reference S3 implementation; most production deployments |
+| **SeaweedFS** | 2015 | Go | Apache 2.0 | Distributed blob store with POSIX filer; designed for billions of small files |
+| **RustFS** | 2024 | Rust | AGPLv3 | MinIO-compatible object store in Rust; memory safety guarantees |
+| **libreFS** | 2025 | Go | AGPLv3 | Community fork preserving MinIO's open-source features (WebUI, LDAP, erasure coding) |
+
+---
+
 ## Test Environment
 
 | Spec | Value |
@@ -166,6 +177,44 @@ Client → S3 Gateway → Filer → Master (assign volume) → Volume Node
 With 20 concurrent threads, the master serializes all assignments. The connections pile up, hit the deadline timeout, and fail. At 5 threads, the master can assign volumes fast enough that connections return before the deadline.
 
 Reads bypass the master entirely (volume location is already known), so heavy mode works well at 5 threads because it's 90%+ reads.
+
+**Why SeaweedFS has extra overhead:** Even in a healthy cluster, every S3 write goes through 4 hops (`S3 gateway → filer → master → volume node`) vs MinIO/RustFS which are single-process — the S3 endpoint *is* the storage node. That coordination latency is inherent to SeaweedFS's design, not a bug.
+
+### Where SeaweedFS Genuinely Wins
+
+- **POSIX filesystem access** alongside S3 — the filer gives you `mount -t fuse` directly on the same data
+- **Billions of tiny files** (< 1 MB) — SeaweedFS compacts small files into large volumes (originally built at Facebook scale)
+- **Apache 2.0 licensing** — no AGPL concerns for embedding in commercial products
+- Mixed **blob + object workloads** on the same storage layer
+
+---
+
+## RisingWave + S3: How SeaweedFS Fits
+
+RisingWave uses S3 in two distinct ways, and SeaweedFS's suitability differs for each:
+
+### How RisingWave Uses S3
+
+1. **Hummock state store (the critical path)** — Checkpoint snapshots are persisted to Hummock, which uses durable object storage as its backend via an LSM-tree architecture. This generates multipart uploads with 16 MB parts, where each SST file can reach 512 MB during deep compaction.
+
+2. **S3 sink (secondary)** — RisingWave can sink processed data directly to S3 as Parquet files via `CREATE SINK` with a configurable endpoint URL.
+
+### Why SeaweedFS is Risky for Hummock
+
+Hummock does **batched, large sequential writes** — favorable for SeaweedFS. But two hard problems remain:
+
+**Multipart upload overhead.** RisingWave uses multipart upload with 16 MB parts. A 512 MB SST file split into 32 parts means 32 sequential `assign volume` RPCs to the master per compaction task. Under concurrent compaction workers this becomes the same gRPC bottleneck observed in our benchmark.
+
+**ListObjectsV2 at scale.** RisingWave organizes SST files under different prefixes. SeaweedFS's filer handles `ListObjectsV2` through a metadata layer, and at tens of thousands of SST files this becomes a filer bottleneck.
+
+### Verdict by Use Case
+
+| RisingWave usage | SeaweedFS viable? | Why |
+|---|---|---|
+| Hummock state store (low-medium throughput) | **Maybe** | Large sequential writes help, but multipart + ListObjects at scale stress the filer |
+| Hummock state store (high throughput) | **No** | Concurrent multipart uploads hit the master bottleneck |
+| S3 sink (Parquet output) | **Yes** | Append-only, infrequent, large files — ideal for SeaweedFS |
+| Dev/staging environment | **Yes** | Apache 2.0, simple setup, POSIX bonus |
 
 ---
 
