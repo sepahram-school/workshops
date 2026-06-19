@@ -101,39 +101,47 @@ uv run python benchmark.py --target <TARGET> --mode <MODE> --sizes <SIZES> --run
 
 ## All Benchmark Combinations
 
+Each command follows: **stop → clean → start → wait → benchmark**. Run one command per mode.
+
 ### MinIO
 
 ```bash
-uv run python benchmark.py --target minio --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target minio --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target minio --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+docker compose -f docker-compose-minio.yml down -v 2>&1; rm -rf data-minio; mkdir -p data-minio; docker compose -f docker-compose-minio.yml up -d; Start-Sleep -Seconds 15; uv run python benchmark.py --target minio --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+
+docker compose -f docker-compose-minio.yml down -v 2>&1; rm -rf data-minio; mkdir -p data-minio; docker compose -f docker-compose-minio.yml up -d; Start-Sleep -Seconds 15; uv run python benchmark.py --target minio --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+
+docker compose -f docker-compose-minio.yml down -v 2>&1; rm -rf data-minio; mkdir -p data-minio; docker compose -f docker-compose-minio.yml up -d; Start-Sleep -Seconds 15; uv run python benchmark.py --target minio --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
 ```
 
 ### RustFS
 
 ```bash
-uv run python benchmark.py --target rustfs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target rustfs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target rustfs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+docker compose -f docker-compose-rustfs.yml down -v 2>&1; rm -rf data-rustfs; mkdir -p data-rustfs/node1 data-rustfs/node2 data-rustfs/node3; docker compose -f docker-compose-rustfs.yml up -d; Start-Sleep -Seconds 30; uv run python benchmark.py --target rustfs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+
+docker compose -f docker-compose-rustfs.yml down -v 2>&1; rm -rf data-rustfs; mkdir -p data-rustfs/node1 data-rustfs/node2 data-rustfs/node3; docker compose -f docker-compose-rustfs.yml up -d; Start-Sleep -Seconds 30; uv run python benchmark.py --target rustfs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+
+docker compose -f docker-compose-rustfs.yml down -v 2>&1; rm -rf data-rustfs; mkdir -p data-rustfs/node1 data-rustfs/node2 data-rustfs/node3; docker compose -f docker-compose-rustfs.yml up -d; Start-Sleep -Seconds 30; uv run python benchmark.py --target rustfs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
 ```
 
 ### libreFS
 
 ```bash
-uv run python benchmark.py --target librefs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target librefs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target librefs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+docker compose -f docker-compose-librefs.yml down -v 2>&1; rm -rf data-librefs; mkdir -p data-librefs/node1 data-librefs/node2 data-librefs/node3; docker compose -f docker-compose-librefs.yml up -d; Start-Sleep -Seconds 20; uv run python benchmark.py --target librefs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+
+docker compose -f docker-compose-librefs.yml down -v 2>&1; rm -rf data-librefs; mkdir -p data-librefs/node1 data-librefs/node2 data-librefs/node3; docker compose -f docker-compose-librefs.yml up -d; Start-Sleep -Seconds 20; uv run python benchmark.py --target librefs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+
+docker compose -f docker-compose-librefs.yml down -v 2>&1; rm -rf data-librefs; mkdir -p data-librefs/node1 data-librefs/node2 data-librefs/node3; docker compose -f docker-compose-librefs.yml up -d; Start-Sleep -Seconds 20; uv run python benchmark.py --target librefs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
 ```
 
 ### SeaweedFS
 
 ```bash
-uv run python benchmark.py --target seaweedfs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target seaweedfs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target seaweedfs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-```
+docker compose -f docker-compose-seaweedfs.yml down -v 2>&1; rm -rf data-seaweedfs; mkdir -p data-seaweedfs/volume1 data-seaweedfs/volume2 data-seaweedfs/volume3; docker compose -f docker-compose-seaweedfs.yml up -d; Start-Sleep -Seconds 50; uv run python benchmark.py --target seaweedfs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
 
-> **Note:** SeaweedFS requires a cluster restart between modes due to gRPC connection pool degradation. For SeaweedFS, run one mode at a time, then restart the cluster before the next mode.
+docker compose -f docker-compose-seaweedfs.yml down -v 2>&1; rm -rf data-seaweedfs; mkdir -p data-seaweedfs/volume1 data-seaweedfs/volume2 data-seaweedfs/volume3; docker compose -f docker-compose-seaweedfs.yml up -d; Start-Sleep -Seconds 50; uv run python benchmark.py --target seaweedfs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+
+docker compose -f docker-compose-seaweedfs.yml down -v 2>&1; rm -rf data-seaweedfs; mkdir -p data-seaweedfs/volume1 data-seaweedfs/volume2 data-seaweedfs/volume3; docker compose -f docker-compose-seaweedfs.yml up -d; Start-Sleep -Seconds 50; uv run python benchmark.py --target seaweedfs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+```
 
 ---
 
