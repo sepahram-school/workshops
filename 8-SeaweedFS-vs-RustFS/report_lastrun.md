@@ -137,6 +137,40 @@ Files are pre-generated with random bytes (no generation overhead during measure
 
 Each configuration runs **3 times** with mean ± stdev reporting.
 
+### Software Versions
+
+| System | Image / Version | Notes |
+|--------|-----------------|-------|
+| **MinIO** | `minio/minio:latest` (2026-06-20) | Latest free/open-source version (AGPLv3) |
+| **SeaweedFS** | `chrislusf/seaweedfs:latest` | Latest stable |
+| **RustFS** | `docker.arvancloud.ir/rustfs/rustfs:latest` | Latest stable |
+| **libreFS** | `librefs:local` (built from source) | Forked from MinIO at `RELEASE.2025-04-22T22-12-26Z` |
+
+> **Note on MinIO licensing:** As of 2025, MinIO moved enterprise features (WebUI, LDAP, distributed erasure coding) behind a proprietary paywall called AIStor. The core S3 server remains open-source under AGPLv3. We used the latest free version available as of 2026-06-20.
+
+### Reproducibility Concerns
+
+**What can be reproduced:**
+- All benchmark code is open-source in this repository
+- Docker compose files define exact cluster configurations
+- Test data is generated with `generate-data.py` (random bytes, seeded per run)
+- Benchmark script (`benchmark.py`) is deterministic for a given hardware configuration
+
+**What cannot be easily reproduced:**
+- **Exact throughput numbers** — depend on host CPU, disk I/O, Docker Desktop overhead, and background processes
+- **Network effects** — all benchmarks used loopback networking; real deployments have NIC latency, switches, and possible cross-rack traffic
+- **Disk contention** — Docker volumes share the host filesystem; dedicated disks would yield different results
+- **SeaweedFS cluster state** — requires fresh restart between runs due to gRPC connection pool degradation; production clusters may behave differently with proper HA
+
+**To reproduce on your hardware:**
+1. Clone this repository
+2. Install dependencies: `uv sync`
+3. Generate test data: `uv run python generate-data.py --size all --files 100`
+4. Run the full benchmark: `.\run-benchmark.ps1`
+5. Or run individual targets: `uv run python benchmark.py --target minio --mode heavy --sizes 1mb,16mb,32mb --runs 3 --files 20`
+
+**Expected runtime:** ~2-3 hours for the full benchmark (4 systems × 3 sizes × 3 modes × 3 runs + cluster startup/cleanup).
+
 ---
 
 ## Results: Heavy Mixed Workload

@@ -106,6 +106,35 @@ uv run python benchmark.py --help
 # Files: number of test files (default: 100)
 ```
 
+### Benchmark Methodology
+
+| Parameter | Value |
+|-----------|-------|
+| **Warmup** | 3 files uploaded before measurement |
+| **Measured** | 17 files per run |
+| **Runs per config** | 3 (mean ± stdev) |
+| **Heavy duration** | 30 seconds concurrent reads + writes |
+| **Total benchmark time** | ~2-3 hours for all systems |
+
+### Software Versions
+
+| System | Image / Version | Notes |
+|--------|-----------------|-------|
+| **MinIO** | `minio/minio:latest` (2026-06-20) | Latest free/open-source version (AGPLv3) |
+| **SeaweedFS** | `chrislusf/seaweedfs:latest` | Latest stable |
+| **RustFS** | `docker.arvancloud.ir/rustfs/rustfs:latest` | Latest stable |
+| **libreFS** | `librefs:local` (built from source) | Forked from MinIO at `RELEASE.2025-04-22T22-12-26Z` |
+
+> **Note on MinIO licensing:** As of 2025, MinIO moved enterprise features (WebUI, LDAP, distributed erasure coding) behind a proprietary paywall called AIStor. The core S3 server remains open-source under AGPLv3. We used the latest free version available as of 2026-06-20.
+
+### Reproducibility
+
+- All benchmark code is open-source in this repository
+- Docker compose files define exact cluster configurations
+- Test data is generated with `generate-data.py` (random bytes, seeded per run)
+- **Expected variation:** Exact throughput numbers depend on host CPU, disk I/O, Docker Desktop overhead, and background processes
+- **To reproduce:** Clone → `uv sync` → `uv run python generate-data.py --size all --files 100` → `.\run-benchmark.ps1`
+
 ---
 
 ## Cluster Configurations
