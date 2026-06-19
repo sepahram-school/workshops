@@ -1,7 +1,8 @@
-﻿# ============================================
-# MinIO Single-Node (Baseline)
 # ============================================
-# MinIO as baseline reference for comparison.
+# MinIO Distributed (3-Node Cluster)
+# ============================================
+# Distributed MinIO cluster for fair comparison
+# with RustFS (3 nodes) and libreFS (3 nodes).
 # Port 9200 to avoid RustFS port 9000 conflict.
 #
 # Start with: docker compose -f docker-compose-minio.yml up -d
@@ -9,15 +10,59 @@
 # ============================================
 
 services:
-  minio:
+  minio1:
     image: minio/minio:latest
-    container_name: minio
-    command: server /data --console-address ":9001"
+    container_name: minio1
+    hostname: minio1
+    volumes:
+      - ./data-minio/node1:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_VOLUMES: "http://minio{1...3}:9000/data"
+    command: server --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
     ports:
       - "9200:9000"
       - "9201:9001"
-    environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin123
+    restart: unless-stopped
+
+  minio2:
+    image: minio/minio:latest
+    container_name: minio2
+    hostname: minio2
     volumes:
-      - ./data-minio:/data
+      - ./data-minio/node2:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_VOLUMES: "http://minio{1...3}:9000/data"
+    command: server --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+  minio3:
+    image: minio/minio:latest
+    container_name: minio3
+    hostname: minio3
+    volumes:
+      - ./data-minio/node3:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_VOLUMES: "http://minio{1...3}:9000/data"
+    command: server --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped

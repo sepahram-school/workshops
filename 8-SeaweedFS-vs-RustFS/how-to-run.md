@@ -1,7 +1,5 @@
 # How to Run the Benchmark
 
-This guide walks you through setting up the environment and running benchmarks step by step.
-
 ---
 
 ## Prerequisites
@@ -25,19 +23,21 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ## Step 1: Set Up the Python Environment
 
 ```bash
-# Navigate to the workshop directory
 cd 8-SeaweedFS-vs-RustFS
-
-# Create a virtual environment
 uv venv
+```
 
-# Activate it
-# Windows PowerShell:
+```powershell
+# Windows PowerShell
 .venv\Scripts\Activate.ps1
-# macOS/Linux:
-source .venv/bin/activate
+```
 
-# Install dependencies
+```bash
+# macOS / Linux
+source .venv/bin/activate
+```
+
+```bash
 uv sync
 ```
 
@@ -46,123 +46,99 @@ uv sync
 ## Step 2: Generate Test Data
 
 ```bash
-# Generate all test files (1mb, 16mb, 32mb) — 100 files each
 uv run python generate-data.py --size all --files 100
-
-# Or generate specific sizes
-uv run python generate-data.py --size 1mb --files 100
-uv run python generate-data.py --size 16mb --files 100
-uv run python generate-data.py --size 32mb --files 100
 ```
-
-This creates files in `data/1mb/`, `data/16mb/`, `data/32mb/`.
 
 ---
 
-## Step 3: Start a Cluster
+## Step 3: Preprocessing
 
-Start **one cluster at a time**. Do not run multiple clusters simultaneously.
+Run the preprocessing block for the system you want to benchmark. Repeat for each system.
 
-```bash
-# MinIO
+### PowerShell (Windows) — Example for MinIO
+
+```powershell
+docker compose -f docker-compose-minio.yml down -v 2>&1
+Remove-Item -Recurse -Force "data-minio" -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path "data-minio\node1", "data-minio\node2", "data-minio\node3" | Out-Null
 docker compose -f docker-compose-minio.yml up -d
-
-# RustFS
-docker compose -f docker-compose-rustfs.yml up -d
-
-# libreFS (requires building the image first — see README.md)
-docker compose -f docker-compose-librefs.yml up -d
-
-# SeaweedFS
-docker compose -f docker-compose-seaweedfs.yml up -d
+Start-Sleep -Seconds 15
 ```
 
-Wait ~15-50 seconds for all containers to be healthy before running benchmarks.
+> Repeat with `docker-compose-rustfs.yml` / `data-rustfs\node1,2,3` (sleep 30), `docker-compose-librefs.yml` / `data-librefs\node1,2,3` (sleep 20), or `docker-compose-seaweedfs.yml` / `data-seaweedfs\volume1,2,3` (sleep 50).
 
----
-
-## Step 4: Run the Benchmark
-
-### Command Format
+### Bash / macOS / Linux — Example for MinIO
 
 ```bash
-uv run python benchmark.py --target <TARGET> --mode <MODE> --sizes <SIZES> --runs <RUNS> --files <FILES>
+docker compose -f docker-compose-minio.yml down -v 2>&1
+rm -rf data-minio
+mkdir -p data-minio/node1 data-minio/node2 data-minio/node3
+docker compose -f docker-compose-minio.yml up -d
+sleep 15
 ```
 
-| Parameter | Options | Default | Description |
-|-----------|---------|---------|-------------|
-| `--target` | `minio`, `rustfs`, `librefs`, `seaweedfs` | `seaweedfs` | Which system to benchmark |
-| `--mode` | `heavy`, `write-only`, `read-only` | `mixed` | Workload type |
-| `--sizes` | `1mb`, `16mb`, `32mb` (comma-separated) | `1mb,32mb` | File sizes to test |
-| `--runs` | Any integer | `3` | Number of repetitions |
-| `--files` | Any integer | `100` | Number of test files per size |
+> Repeat with `docker-compose-rustfs.yml` / `data-rustfs/node1,2,3` (sleep 30), `docker-compose-librefs.yml` / `data-librefs/node1,2,3` (sleep 20), or `docker-compose-seaweedfs.yml` / `data-seaweedfs/volume1,2,3` (sleep 50).
 
 ---
 
-## All Benchmark Combinations
+## Step 4: Run Benchmark
 
-Each command follows: **stop → clean → start → wait → benchmark**. Run one command per mode.
+Run one command per mode. Each command runs all sizes (1mb, 16mb, 32mb) in sequence.
 
 ### MinIO
 
 ```bash
-docker compose -f docker-compose-minio.yml down -v 2>&1; rm -rf data-minio; mkdir -p data-minio; docker compose -f docker-compose-minio.yml up -d; Start-Sleep -Seconds 15; uv run python benchmark.py --target minio --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-
-docker compose -f docker-compose-minio.yml down -v 2>&1; rm -rf data-minio; mkdir -p data-minio; docker compose -f docker-compose-minio.yml up -d; Start-Sleep -Seconds 15; uv run python benchmark.py --target minio --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-
-docker compose -f docker-compose-minio.yml down -v 2>&1; rm -rf data-minio; mkdir -p data-minio; docker compose -f docker-compose-minio.yml up -d; Start-Sleep -Seconds 15; uv run python benchmark.py --target minio --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target minio --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target minio --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target minio --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
 ```
 
 ### RustFS
 
 ```bash
-docker compose -f docker-compose-rustfs.yml down -v 2>&1; rm -rf data-rustfs; mkdir -p data-rustfs/node1 data-rustfs/node2 data-rustfs/node3; docker compose -f docker-compose-rustfs.yml up -d; Start-Sleep -Seconds 30; uv run python benchmark.py --target rustfs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-
-docker compose -f docker-compose-rustfs.yml down -v 2>&1; rm -rf data-rustfs; mkdir -p data-rustfs/node1 data-rustfs/node2 data-rustfs/node3; docker compose -f docker-compose-rustfs.yml up -d; Start-Sleep -Seconds 30; uv run python benchmark.py --target rustfs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-
-docker compose -f docker-compose-rustfs.yml down -v 2>&1; rm -rf data-rustfs; mkdir -p data-rustfs/node1 data-rustfs/node2 data-rustfs/node3; docker compose -f docker-compose-rustfs.yml up -d; Start-Sleep -Seconds 30; uv run python benchmark.py --target rustfs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target rustfs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target rustfs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target rustfs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
 ```
 
 ### libreFS
 
 ```bash
-docker compose -f docker-compose-librefs.yml down -v 2>&1; rm -rf data-librefs; mkdir -p data-librefs/node1 data-librefs/node2 data-librefs/node3; docker compose -f docker-compose-librefs.yml up -d; Start-Sleep -Seconds 20; uv run python benchmark.py --target librefs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-
-docker compose -f docker-compose-librefs.yml down -v 2>&1; rm -rf data-librefs; mkdir -p data-librefs/node1 data-librefs/node2 data-librefs/node3; docker compose -f docker-compose-librefs.yml up -d; Start-Sleep -Seconds 20; uv run python benchmark.py --target librefs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-
-docker compose -f docker-compose-librefs.yml down -v 2>&1; rm -rf data-librefs; mkdir -p data-librefs/node1 data-librefs/node2 data-librefs/node3; docker compose -f docker-compose-librefs.yml up -d; Start-Sleep -Seconds 20; uv run python benchmark.py --target librefs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target librefs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target librefs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target librefs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
 ```
 
 ### SeaweedFS
 
 ```bash
-docker compose -f docker-compose-seaweedfs.yml down -v 2>&1; rm -rf data-seaweedfs; mkdir -p data-seaweedfs/volume1 data-seaweedfs/volume2 data-seaweedfs/volume3; docker compose -f docker-compose-seaweedfs.yml up -d; Start-Sleep -Seconds 50; uv run python benchmark.py --target seaweedfs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-
-docker compose -f docker-compose-seaweedfs.yml down -v 2>&1; rm -rf data-seaweedfs; mkdir -p data-seaweedfs/volume1 data-seaweedfs/volume2 data-seaweedfs/volume3; docker compose -f docker-compose-seaweedfs.yml up -d; Start-Sleep -Seconds 50; uv run python benchmark.py --target seaweedfs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-
-docker compose -f docker-compose-seaweedfs.yml down -v 2>&1; rm -rf data-seaweedfs; mkdir -p data-seaweedfs/volume1 data-seaweedfs/volume2 data-seaweedfs/volume3; docker compose -f docker-compose-seaweedfs.yml up -d; Start-Sleep -Seconds 50; uv run python benchmark.py --target seaweedfs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target seaweedfs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target seaweedfs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target seaweedfs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
 ```
+
+> **SeaweedFS:** Run preprocessing (Step 3) before each mode due to gRPC connection pool degradation.
 
 ---
 
-## Quick Benchmark (Single Run)
+## Step 5: Stop and Clean
 
-For a fast test with 1 run instead of 3:
-
-```bash
-uv run python benchmark.py --target minio --mode heavy --sizes 1mb,16mb,32mb --runs 1 --files 20 2>&1
-```
-
----
-
-## Step 5: Stop the Cluster
-
-```bash
-# Stop and remove containers + volumes
+```powershell
+# PowerShell
 docker compose -f docker-compose-minio.yml down -v
+docker compose -f docker-compose-rustfs.yml down -v
+docker compose -f docker-compose-librefs.yml down -v
+docker compose -f docker-compose-seaweedfs.yml down -v
+Remove-Item -Recurse -Force "data-minio","data-rustfs","data-librefs","data-seaweedfs" -ErrorAction SilentlyContinue
+```
 
-# Clean data directories
-rm -rf data-minio
+```bash
+# Bash / macOS / Linux
+docker compose -f docker-compose-minio.yml down -v
+docker compose -f docker-compose-rustfs.yml down -v
+docker compose -f docker-compose-librefs.yml down -v
+docker compose -f docker-compose-seaweedfs.yml down -v
+rm -rf data-minio data-rustfs data-librefs data-seaweedfs
 ```
 
 ---
@@ -171,36 +147,16 @@ rm -rf data-minio
 
 To run the entire benchmark suite automatically:
 
-```bash
+```powershell
 .\run-benchmark.ps1
 ```
-
-This starts each cluster sequentially, runs all modes and sizes, and cleans up between systems.
 
 ---
 
 ## Troubleshooting
 
-### SeaweedFS times out or hangs
-
-SeaweedFS requires a cluster restart between benchmark modes due to gRPC connection pool degradation:
-
-```bash
-docker compose -f docker-compose-seaweedfs.yml down -v
-rm -rf data-seaweedfs
-docker compose -f docker-compose-seaweedfs.yml up -d
-# Wait 50 seconds, then run the next benchmark
-```
-
-### RustFS not responding on localhost
-
-Use `127.0.0.1` instead of `localhost` — Windows Docker Desktop has IPv6 issues with some containers.
-
-### Disk space errors
-
-128mb benchmarks generate ~1.3 GB per run. Clean data between sizes:
-
-```bash
-docker compose -f docker-compose-<system>.yml down -v
-rm -rf data-<system>
-```
+| Problem | Solution |
+|---------|----------|
+| SeaweedFS times out | Run preprocessing before each mode |
+| RustFS not responding on localhost | Use `127.0.0.1` instead (IPv6 issue) |
+| Disk space errors | Clean data between runs (Step 5) |
