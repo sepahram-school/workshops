@@ -104,78 +104,36 @@ uv run python benchmark.py --target <TARGET> --mode <MODE> --sizes <SIZES> --run
 ### MinIO
 
 ```bash
-# Write-only
-uv run python benchmark.py --target minio --mode write-only --sizes 1mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target minio --mode write-only --sizes 16mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target minio --mode write-only --sizes 32mb --runs 3 --files 20 2>&1
-
-# Read-only
-uv run python benchmark.py --target minio --mode read-only --sizes 1mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target minio --mode read-only --sizes 16mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target minio --mode read-only --sizes 32mb --runs 3 --files 20 2>&1
-
-# Heavy (concurrent reads + writes)
-uv run python benchmark.py --target minio --mode heavy --sizes 1mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target minio --mode heavy --sizes 16mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target minio --mode heavy --sizes 32mb --runs 3 --files 20 2>&1
+uv run python benchmark.py --target minio --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target minio --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target minio --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
 ```
 
 ### RustFS
 
 ```bash
-# Write-only
-uv run python benchmark.py --target rustfs --mode write-only --sizes 1mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target rustfs --mode write-only --sizes 16mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target rustfs --mode write-only --sizes 32mb --runs 3 --files 20 2>&1
-
-# Read-only
-uv run python benchmark.py --target rustfs --mode read-only --sizes 1mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target rustfs --mode read-only --sizes 16mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target rustfs --mode read-only --sizes 32mb --runs 3 --files 20 2>&1
-
-# Heavy
-uv run python benchmark.py --target rustfs --mode heavy --sizes 1mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target rustfs --mode heavy --sizes 16mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target rustfs --mode heavy --sizes 32mb --runs 3 --files 20 2>&1
+uv run python benchmark.py --target rustfs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target rustfs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target rustfs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
 ```
 
 ### libreFS
 
 ```bash
-# Write-only
-uv run python benchmark.py --target librefs --mode write-only --sizes 1mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target librefs --mode write-only --sizes 16mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target librefs --mode write-only --sizes 32mb --runs 3 --files 20 2>&1
-
-# Read-only
-uv run python benchmark.py --target librefs --mode read-only --sizes 1mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target librefs --mode read-only --sizes 16mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target librefs --mode read-only --sizes 32mb --runs 3 --files 20 2>&1
-
-# Heavy
-uv run python benchmark.py --target librefs --mode heavy --sizes 1mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target librefs --mode heavy --sizes 16mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target librefs --mode heavy --sizes 32mb --runs 3 --files 20 2>&1
+uv run python benchmark.py --target librefs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target librefs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target librefs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
 ```
 
 ### SeaweedFS
 
 ```bash
-# Write-only
-uv run python benchmark.py --target seaweedfs --mode write-only --sizes 1mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target seaweedfs --mode write-only --sizes 16mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target seaweedfs --mode write-only --sizes 32mb --runs 3 --files 20 2>&1
-
-# Read-only
-uv run python benchmark.py --target seaweedfs --mode read-only --sizes 1mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target seaweedfs --mode read-only --sizes 16mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target seaweedfs --mode read-only --sizes 32mb --runs 3 --files 20 2>&1
-
-# Heavy
-uv run python benchmark.py --target seaweedfs --mode heavy --sizes 1mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target seaweedfs --mode heavy --sizes 16mb --runs 3 --files 20 2>&1
-uv run python benchmark.py --target seaweedfs --mode heavy --sizes 32mb --runs 3 --files 20 2>&1
+uv run python benchmark.py --target seaweedfs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target seaweedfs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target seaweedfs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
 ```
+
+> **Note:** SeaweedFS requires a cluster restart between modes due to gRPC connection pool degradation. For SeaweedFS, run one mode at a time, then restart the cluster before the next mode.
 
 ---
 
