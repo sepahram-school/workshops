@@ -47,6 +47,7 @@ uv sync
 
 ```bash
 uv run python generate-data.py --size all --files 100
+uv run python generate_data_parquet.py --size all --files 100
 ```
 
 ---
@@ -83,38 +84,45 @@ sleep 15
 
 ## Step 4: Run Benchmark
 
-Run one command per mode. Each command runs all sizes (1mb, 16mb, 32mb) in sequence.
-
-### MinIO
+### Benchmark 1: Classic (boto3 — Raw S3 PUT/GET)
 
 ```bash
-uv run python benchmark.py --target minio --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target minio --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target minio --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark.py --target minio --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20
+uv run python benchmark.py --target minio --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20
+uv run python benchmark.py --target minio --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20
 ```
 
-### RustFS
+### Benchmark 2: DuckDB (Analytical Parquet I/O)
 
 ```bash
-uv run python benchmark.py --target rustfs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target rustfs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target rustfs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark_duckdb.py --target minio --mode write-only --sizes 1mb --runs 3
+uv run python benchmark_duckdb.py --target minio --mode read-only --sizes 1mb --runs 3
+uv run python benchmark_duckdb.py --target minio --mode heavy --sizes 1mb,32mb --runs 3
 ```
 
-### libreFS
+### Benchmark 3: DuckLake (Lakehouse — SQLite Metadata)
 
 ```bash
-uv run python benchmark.py --target librefs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target librefs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target librefs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark_ducklake.py --target minio --mode write-only --sizes 1mb --runs 3
+uv run python benchmark_ducklake.py --target minio --mode read-only --sizes 1mb --runs 3
+uv run python benchmark_ducklake.py --target minio --mode heavy --sizes 1mb,32mb --runs 3
+uv run python benchmark_ducklake.py --target minio --mode transactions
+uv run python benchmark_ducklake.py --target minio --mode time-travel
+uv run python benchmark_ducklake.py --target minio --mode snapshots
+uv run python benchmark_ducklake.py --target minio --mode concurrent
 ```
 
-### SeaweedFS
+### Benchmark 4: Iceberg (Lakehouse — File-Based Metadata)
 
 ```bash
-uv run python benchmark.py --target seaweedfs --mode write-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target seaweedfs --mode read-only --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
-uv run python benchmark.py --target seaweedfs --mode heavy --sizes "1mb,16mb,32mb" --runs 3 --files 20 2>&1
+uv run python benchmark_iceberg.py --target minio --mode write-only --sizes 1mb --runs 3
+uv run python benchmark_iceberg.py --target minio --mode read-only --sizes 1mb --runs 3
+uv run python benchmark_iceberg.py --target minio --mode heavy --sizes 1mb,32mb --runs 3
+uv run python benchmark_iceberg.py --target minio --mode time-travel --runs 1
+uv run python benchmark_iceberg.py --target minio --mode snapshots --runs 1
+uv run python benchmark_iceberg.py --target minio --mode change-detection --runs 1
+uv run python benchmark_iceberg.py --target minio --mode update --runs 1
+uv run python benchmark_iceberg.py --target minio --mode delete --runs 1
 ```
 
 > **SeaweedFS:** Run preprocessing (Step 3) before each mode due to gRPC connection pool degradation.
@@ -153,6 +161,19 @@ To run the entire benchmark suite automatically:
 
 ---
 
+## Results Directory Structure
+
+```
+results/              ← Classic (boto3)
+results_duckdb/       ← DuckDB (Parquet I/O)
+results_ducklake/     ← DuckLake (SQLite metadata)
+results_iceberg/      ← Iceberg (file-based metadata)
+```
+
+Each directory follows: `{mode}/{size}/{target}/run-{N}.json`
+
+---
+
 ## Troubleshooting
 
 | Problem | Solution |
@@ -160,3 +181,5 @@ To run the entire benchmark suite automatically:
 | SeaweedFS times out | Run preprocessing before each mode |
 | RustFS not responding on localhost | Use `127.0.0.1` instead (IPv6 issue) |
 | Disk space errors | Clean data between runs (Step 5) |
+| Iceberg catalog errors | Delete `*.db` files (stale SQLite catalogs) |
+| DuckDB extension errors | Run `uv run python -c "import duckdb; duckdb.sql('INSTALL iceberg; LOAD iceberg;')"` |

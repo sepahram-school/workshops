@@ -1,5 +1,8 @@
 data/
 results/
+results_duckdb/
+results_ducklake/
+results_iceberg/
 .venv/
 *.pdf
 data-seaweedfs/
@@ -8,3 +11,5 @@ data-librefs/
 data-minio/
 __pycache__/
 *.pyc
+*.db
+*.lock

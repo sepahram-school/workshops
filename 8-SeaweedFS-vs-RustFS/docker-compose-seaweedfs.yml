@@ -137,8 +137,6 @@ services:
     image: chrislusf/seaweedfs:latest
     container_name: seaweedfs-filer
     command: filer -ip=filer -master=master1:9333,master2:9334,master3:9335 -port=8888
-    ports:
-      - "8888:8888"
     networks:
       - seaweedfs-net
     depends_on:

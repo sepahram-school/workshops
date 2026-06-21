@@ -217,6 +217,54 @@ uv run python benchmark_duckdb.py --target all --mode heavy --sizes 1mb,32mb --r
 
 ---
 
+## 🧊 Iceberg Benchmark: Production Lakehouse with File-Based Metadata
+
+Apache Iceberg is the **industry-standard open table format** for production data lakes. This benchmark tests Iceberg's file-based metadata management — where every write creates new metadata files (`vN.metadata.json`, manifest files) on S3 alongside the Parquet data.
+
+### Four Benchmarks, Four Perspectives
+
+| Benchmark | Script | What It Tests | Metadata | Results Dir |
+|-----------|--------|--------------|----------|-------------|
+| **Classic** | `benchmark.py` | Raw S3 throughput (PUT/GET) | None | `results/` |
+| **DuckDB** | `benchmark_duckdb.py` | Analytical Parquet I/O | None | `results_duckdb/` |
+| **DuckLake** | `benchmark_ducklake.py` | Lakehouse (SQLite metadata) | SQLite | `results_ducklake/` |
+| **Iceberg** | `benchmark_iceberg.py` | Lakehouse (file-based metadata) | S3 files | `results_iceberg/` |
+
+### Why Iceberg?
+
+Iceberg stores all metadata as files in the table's `metadata/` directory on S3 — enabling time travel, ACID transactions, and schema evolution without any external catalog service. This benchmark uses PyIceberg (Hadoop catalog) for writes and DuckDB `iceberg_scan()` for reads.
+
+### 9 Benchmark Modes
+
+| Mode | What It Measures |
+|------|-----------------|
+| `write-only` | Bulk append throughput + small streaming TPS |
+| `read-only` | Scan, aggregate, point query via DuckDB iceberg_scan() |
+| `mixed` | Sequential write then read |
+| `heavy` | Concurrent writes + reads for 30s |
+| `time-travel` | Snapshot creation + AT VERSION query |
+| `snapshots` | Metadata listing latency |
+| `change-detection` | Diff between snapshots |
+| `update` | Row-level update via PyIceberg |
+| `delete` | Row-level delete via PyIceberg |
+
+### Running the Iceberg Benchmark
+
+```bash
+# Standard modes
+uv run python benchmark_iceberg.py --target minio --mode write-only --sizes 1mb --runs 3
+uv run python benchmark_iceberg.py --target all --mode heavy --sizes 1mb,32mb --runs 3
+
+# Iceberg-specific modes
+uv run python benchmark_iceberg.py --target minio --mode time-travel
+uv run python benchmark_iceberg.py --target minio --mode snapshots
+uv run python benchmark_iceberg.py --target minio --mode change-detection
+```
+
+> **Full methodology**: See [`docx-appendix-methodology.md`](docx-appendix-methodology.md#appendix-iceberg-benchmark-methodology) for detailed Iceberg benchmark design and interpretation.
+
+---
+
 ## 📊 Consolidated Benchmark Results
 
 > The tables below present **throughput (MB/s)** and **P50 latency** for all three workloads. All values are mean ± stdev (n=3). SeaweedFS is capped at 5 threads; all others run at 20 threads.

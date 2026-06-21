@@ -8,4 +8,8 @@ dependencies = [
     "polars>=1.41.2",
     "pyarrow>=24.0.0",
     "psutil>=6.0.0",
+    "pytz>=2026.2",
+    "pyiceberg[sql-sqlite]>=0.9.1",
+    "daft>=0.4.8",
+    "pandas>=2.0.0",
 ]

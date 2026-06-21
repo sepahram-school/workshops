@@ -1,8 +1,9 @@
 # ============================================
-# Benchmark Orchestrator for v2
+# Benchmark Orchestrator
 # ============================================
 # Starts each cluster, runs benchmarks, collects metrics,
 # and generates aggregated results.
+# Cleans up data directories after each mode to save disk space.
 #
 # Usage:
 #   .\run-benchmark.ps1
@@ -13,9 +14,9 @@ param(
     [string]$Systems = "seaweedfs,rustfs,librefs,minio",
     [int]$Runs = 3,
     [int]$Threads = 20,
-    [string]$Sizes = "1mb,32mb,128mb",
+    [string]$Sizes = "1mb,16mb,32mb",
     [int]$Files = 100,
-    [switch]$SkipRead,
+    [string]$Modes = "write-only,read-only,heavy",
     [switch]$SkipGenerate
 )
 
@@ -29,6 +30,36 @@ $Composites = @(
 
 $SystemsList = $Systems -split ","
 
+function Cleanup-DataDir {
+    param([string]$SystemName)
+    if ($SystemName -eq "minio") {
+        foreach ($n in 1..3) {
+            $dataDir = "data-minio$n"
+            if (Test-Path $dataDir) {
+                Remove-Item -Recurse -Force $dataDir -ErrorAction SilentlyContinue
+                Write-Host "  Cleaned up $dataDir/" -ForegroundColor DarkGray
+            }
+        }
+    } else {
+        $dataDir = "data-$SystemName"
+        if (Test-Path $dataDir) {
+            Remove-Item -Recurse -Force $dataDir -ErrorAction SilentlyContinue
+            Write-Host "  Cleaned up $dataDir/" -ForegroundColor DarkGray
+        }
+    }
+}
+
+function Cleanup-All-Data {
+    $dirs = @("data-seaweedfs", "data-rustfs", "data-librefs",
+              "data-minio1", "data-minio2", "data-minio3")
+    foreach ($d in $dirs) {
+        if (Test-Path $d) {
+            Remove-Item -Recurse -Force $d -ErrorAction SilentlyContinue
+            Write-Host "  Cleaned up $d/" -ForegroundColor DarkGray
+        }
+    }
+}
+
 # 1. Document hardware specs
 Write-Host "`n=== Collecting Hardware Specs ===" -ForegroundColor Cyan
 $cpuInfo = (Get-CimInstance Win32_Processor).Name
@@ -39,7 +70,7 @@ Write-Host "  RAM: ${ramGB} GB"
 Write-Host "  Docker: $dockerVer"
 
 $hwSpec = @"
-# Hardware Specifications — v2 Benchmark
+# Hardware Specifications — Benchmark
 
 | Spec | Value |
 |------|-------|
@@ -74,42 +105,39 @@ foreach ($sys in $SystemsList) {
     Write-Host "  SYSTEM: $($sys.ToUpper())" -ForegroundColor Green
     Write-Host "============================================" -ForegroundColor Green
 
+    # Ensure only this system's data exists
+    Cleanup-All-Data
+
     # Start cluster
     Write-Host "`n  Starting cluster..."
     docker compose -f $($composite.File) up -d
     Start-Sleep -Seconds 10
 
-    # Start resource monitoring in background
-    $metricsJob = Start-Job -ScriptBlock {
-        param($prefix, $outDir)
-        & powershell -File "collect-metrics.ps1" -ContainerPrefix $prefix -OutputDir $outDir
-    } -ArgumentList $composite.Prefix, "results\metrics"
+    # Run benchmark for each mode
+    $ModesList = $Modes -split ","
+    foreach ($mode in $ModesList) {
+        Write-Host "`n  --- Mode: $mode ---" -ForegroundColor Yellow
+        uv run python benchmark.py --target $sys --threads $Threads --sizes $Sizes --runs $Runs --files $Files --mode $mode
 
-    # Run benchmark
-    Write-Host "  Running benchmark..."
-    $readFlag = if ($SkipRead) { "--skip-read" } else { "" }
-    uv run python benchmark.py --target $sys --threads $Threads --sizes $Sizes --runs $Runs --files $Files $readFlag
-
-    # Stop monitoring
-    Stop-Job -Job $metricsJob -ErrorAction SilentlyContinue
-    Remove-Job -Job $metricsJob -Force -ErrorAction SilentlyContinue
+        # Cleanup data directories after each mode to save disk space
+        Write-Host "  Cleaning up data after $mode..."
+        Cleanup-DataDir -SystemName $sys
+    }
 
     # Stop cluster
     Write-Host "`n  Stopping cluster..."
     docker compose -f $($composite.File) down -v
 
-    # Cleanup data directories
-    $dataDir = "data-$sys"
-    if (Test-Path $dataDir) {
-        Remove-Item -Recurse -Force $dataDir -ErrorAction SilentlyContinue
-        Write-Host "  Cleaned up $dataDir/"
-    }
+    # Final cleanup after cluster stop
+    Cleanup-DataDir -SystemName $sys
 }
 
-# 4. Report
+# 4. Final sweep — ensure no data directories remain
+Write-Host "`n=== Final Cleanup ===" -ForegroundColor Cyan
+Cleanup-All-Data
+
+# 5. Report
 Write-Host "`n============================================" -ForegroundColor Cyan
 Write-Host "  BENCHMARK COMPLETE" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "  Results in: results/"
-Write-Host "  Summary:    results/summary.json"
-Write-Host "  Metrics:    results/metrics/"
