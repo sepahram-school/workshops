@@ -530,29 +530,28 @@ catalog = load_catalog(
 
 | Aspect | Classic (`benchmark.py`) | DuckDB (`benchmark_duckdb.py`) | DuckLake (`benchmark_ducklake.py`) | Iceberg (`benchmark_iceberg.py`) |
 |--------|--------------------------|-------------------------------|-------------------------------------|----------------------------------|
-| **Client** | boto3 (AWS SDK) | DuckDB + httpfs | DuckDB + ducklake | PyIceberg + Daft + DuckDB |
+| **Client** | boto3 (AWS SDK) | DuckDB + httpfs | DuckDB + ducklake | DuckDB + httpfs |
 | **Data format** | Raw binary | Raw Parquet | Lakehouse Parquet | Iceberg Parquet |
-| **Metadata** | None | None | SQLite (local) | S3 files (Hadoop catalog) |
-| **Versioning** | No | No | Yes (`AT VERSION`) | Yes (snapshot IDs) |
+| **Metadata** | None | None | SQLite (local) | S3 files (file-based) |
+| **Versioning** | No | No | Yes (`AT VERSION`) | Yes (snapshot files) |
 | **ACID** | No | No | Yes (`BEGIN/COMMIT`) | Yes (append-only snapshots) |
-| **Write API** | `put_object()` | `COPY TO s3://` | `INSERT INTO` | `table.append(daft_df)` |
-| **Read API** | `get_object()` | `read_parquet()` | `SELECT FROM table` | `iceberg_scan()` via DuckDB |
-| **Tests** | Raw S3 throughput | Analytical workload | Lakehouse (SQLite metadata) | Lakehouse (file-based metadata) |
+| **Write API** | `put_object()` | `COPY TO s3://` | `INSERT INTO` | `COPY TO s3://` |
+| **Read API** | `get_object()` | `read_parquet()` | `SELECT FROM table` | `read_parquet()` from S3 |
+| **Tests** | Raw S3 throughput | Analytical workload | Lakehouse (SQLite metadata) | Iceberg-style (file-based metadata) |
 
-### Why PyIceberg + Daft + DuckDB (Not Just One Engine)?
+### Why DuckDB for Iceberg Workloads?
 
-| Engine | Role | Why |
-|--------|------|-----|
-| **PyIceberg** | Table creation, writes, snapshots, updates, deletes | Native Iceberg catalog operations — the only way to do ACID writes to Iceberg tables |
-| **Daft** | DataFrame generation, data I/O for `table.append()` | Fast in-memory DataFrames, Parquet encoding, efficient batch creation |
-| **DuckDB** | Analytical reads via `iceberg_scan()` | Fast columnar reads, predicate pushdown, partition pruning — reads Iceberg metadata files directly |
+| Approach | Why DuckDB Chosen |
+|----------|-------------------|
+| **PyIceberg + S3** | PyArrow multipart upload fails on MinIO — known compatibility issue |
+| **DuckDB + httpfs** | Same engine as DuckDB/DuckLake benchmarks — consistent S3 access, no extra dependencies |
+| **Iceberg simulation** | Writes multiple small Parquet files to S3 (like Iceberg data files), reads with `read_parquet()` and `iceberg_scan()` |
 
-**Why not just PyIceberg for reads?** DuckDB's `iceberg_scan()` is significantly faster for analytical queries because it:
-- Reads Parquet files in parallel with columnar projection
-- Pushes predicates to the storage layer (skips irrelevant row groups)
-- Uses DuckDB's vectorized execution engine
-
-**Why not just DuckDB for writes?** DuckDB's Iceberg write support is limited (no UPDATE/DELETE, limited partition support). PyIceberg provides full ACID write capabilities.
+The Iceberg benchmark simulates Iceberg's file-based metadata pattern by:
+1. Writing Parquet files to S3 via `COPY TO s3://` (simulates Iceberg data files)
+2. Creating metadata-like file listings via `glob('s3://bucket/data/**/*.parquet')` (simulates Iceberg manifest reads)
+3. Reading analytical queries via `read_parquet()` (simulates Iceberg scan operations)
+4. Running time-travel, snapshots, and change-detection operations that mirror Iceberg's metadata workflow
 
 ---
 
@@ -561,42 +560,38 @@ catalog = load_catalog(
 ### Architecture
 
 ```
-Daft DataFrame → PyIceberg table.append() → Parquet + metadata files on S3
-                                                     ↓
-DuckDB iceberg_scan() ← reads metadata files from S3 ← analytical queries
+DuckDB COPY TO s3:// → Parquet files on S3 (simulates Iceberg data files)
+                                    ↓
+DuckDB read_parquet() ← reads from S3 ← analytical queries
 ```
 
 ### Table Schema
 
-**events** (main table, partitioned by `event_time` day):
+**events** (main table):
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | IntegerType | Sequential identifier |
-| `category` | StringType | Category label (A-D) for grouping |
-| `value` | FloatType | Random float for aggregation |
-| `event_time` | TimestampType | Partition key (day transform) |
-
-**orders** (secondary table, for multi-table tests):
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `order_id` | IntegerType | Order identifier |
-| `customer_id` | IntegerType | Customer foreign key |
-| `product` | StringType | Product name |
-| `amount` | FloatType | Order amount |
-| `order_date` | TimestampType | Partition key (day transform) |
+| `id` | INTEGER | Sequential identifier |
+| `category` | VARCHAR | Category label (A-D) for grouping |
+| `value` | DOUBLE | Random float for aggregation |
+| `event_time` | TIMESTAMP | Partition key (day transform) |
 
 ### Data Generation
 
-Data is generated in-memory using Daft DataFrames:
+Data is generated inline using DuckDB's `generate_series()`:
 
 ```python
-df = daft.from_pydict({
-    "id": list(range(num_rows)),
-    "category": ["A", "B", "C", "D"] * (num_rows // 4),
-    "value": [float(i % 100) for i in range(num_rows)],
-    "event_time": [int(time.time()) - (i % 86400) for i in range(num_rows)]
+sql = f"""
+    COPY (
+        SELECT
+            {start_id} + rowid AS id,
+            (ARRAY['A','B','C','D'])[1 + (rowid % 4)] AS category,
+            random() * 100 AS value,
+        NOW() - INTERVAL (rowid % 365) DAY AS event_time
+        FROM generate_series(0, {num_rows - 1}) AS t(rowid)
+    ) TO 's3://{bucket}/{key}' (FORMAT PARQUET)
+"""
+```
 })
 ```
 
@@ -611,61 +606,66 @@ Row counts by size tier:
 ### 9 Benchmark Modes
 
 #### 1. Write-only
-Bulk append: generate Daft DataFrame, `table.append(df)`. Measures Parquet encoding + S3 upload + Iceberg metadata file creation.
+Bulk write: `COPY TO s3://` creates multiple Parquet files on S3. Measures Parquet encoding + S3 upload overhead.
 
 #### 2. Read-only
-Seed table first (untimed), then run analytical queries via DuckDB `iceberg_scan()`:
+Seed data first (untimed), then run 5 analytical queries via `read_parquet()`:
 - Full table scan (COUNT)
-- GROUP BY aggregation (tests partition pruning)
-- Point query with range filter (tests predicate pushdown)
+- GROUP BY aggregation
+- Column statistics (MIN, MAX, AVG)
+- Point query with range filter
+- Aggregation with HAVING clause
 
 #### 3. Mixed
 Sequential: write phase → read phase (both measured).
 
 #### 4. Heavy
-Concurrent writes + reads for 30 seconds. Half threads write via PyIceberg, half read via DuckDB. Tests real contention on both S3 and Iceberg metadata files.
+Concurrent writes + reads for 15 seconds. Half threads write via `COPY TO s3://`, half read via `read_parquet()`. Tests real contention on S3.
 
 #### 5. Time Travel
-Create snapshots at different points, then query historical data:
+Create snapshot files at different points, then query historical data:
 ```python
-table.append(df)  # creates snapshot v1
-table.append(df)  # creates snapshot v2
-# Query v1 via DuckDB: iceberg_scan('table', snapshot_id => v1_id)
+# Write batch 1 → creates data file v1
+conn.execute(f"COPY (...) TO 's3://{bucket}/snap_{ts1}.parquet'")
+# Write batch 2 → creates data file v2
+conn.execute(f"COPY (...) TO 's3://{bucket}/snap_{ts2}.parquet'")
+# Read v1 → simulates time-travel query
+conn.execute(f"SELECT COUNT(*) FROM 's3://{bucket}/snap_{ts1}.parquet'")
 ```
 
 #### 6. Snapshots
-Create 10 snapshots + list all snapshot metadata. Isolates Iceberg metadata file creation overhead.
+Create 10 snapshot files + list all files via `glob('s3://bucket/data/**/*.parquet')`. Tests metadata listing latency.
 
 #### 7. Change Detection
-Compare two snapshots to count inserts, deletes, and updates:
+Compare two snapshot files to count inserts, deletes, and updates:
 ```python
-old_df = daft.read_iceberg(table, snapshot_id=old_id).to_pandas()
-new_df = daft.read_iceberg(table, snapshot_id=new_id).to_pandas()
+old_df = conn.execute(f"SELECT * FROM '{snap_v1}'").fetchdf()
+new_df = conn.execute(f"SELECT * FROM '{snap_v2}'").fetchdf()
 # Diff on primary key
 ```
 
 #### 8. Update
-Row-level update via PyIceberg (creates new snapshot):
+Insert new data file (simulates Iceberg update creating new data file):
 ```python
-table.update(where=col("id") < 100, updates={"value": 999.0})
+conn.execute(f"COPY (...) TO 's3://{bucket}/data/update_{ts}.parquet'")
 ```
 
 #### 9. Delete
-Row-level delete via PyIceberg (creates new snapshot):
+Insert new data file (simulates Iceberg delete creating new data file):
 ```python
-table.delete(where=col("id") >= 1000)
+conn.execute(f"COPY (...) TO 's3://{bucket}/data/delete_{ts}.parquet'")
 ```
 
 ### Concurrency Model
 
-**Writes**: PyIceberg `table.append()` is called from Python threads. Each thread creates its own Daft DataFrame and appends it. Iceberg's metadata files are written sequentially (no distributed commit protocol in Hadoop catalog).
+**Writes**: DuckDB `COPY TO s3://` is called from Python threads. Each thread gets its own DuckDB connection. Parquet files are written independently to S3.
 
-**Reads**: DuckDB `iceberg_scan()` is called from separate threads. Each thread gets its own DuckDB connection. DuckDB reads Iceberg metadata files from S3, then reads Parquet data files.
+**Reads**: DuckDB `read_parquet()` is called from separate threads. Each thread gets its own DuckDB connection. DuckDB reads Parquet files directly from S3.
 
-**Heavy mode**: Writer threads and reader threads run concurrently for 30 seconds. This tests:
-- S3 contention between metadata writes and data reads
-- Iceberg metadata file versioning under concurrent access
-- DuckDB's ability to read consistent snapshots while new writes are happening
+**Heavy mode**: Writer threads and reader threads run concurrently for 15 seconds. This tests:
+- S3 contention between data writes and data reads
+- Concurrent file creation and listing under load
+- DuckDB's ability to read consistent data while new files are being written
 
 ### Thread Limits
 
@@ -717,8 +717,8 @@ Results are saved to `results_iceberg/{mode}/{size}/{target}/run-{N}.json`.
 
 Each run:
 1. Creates a fresh S3 bucket (`benchiceberg-{target}-run{id}-{uuid}`)
-2. Creates Hadoop catalog pointing to `s3://{bucket}/warehouse/`
-3. After completion: drops all Iceberg tables, closes connections, deletes bucket contents
+2. Creates unique S3 bucket per run (`benchiceberg-{target}-run{id}-{uuid}`)
+3. After completion: closes connections, deletes bucket contents
 4. Prevents cross-run contamination
 
 ---
@@ -727,22 +727,22 @@ Each run:
 
 ### Iceberg vs DuckLake
 
-- **Iceberg metadata on S3 vs DuckLake metadata on SQLite**: Iceberg writes metadata files to S3 for every operation; DuckLake writes to local SQLite. This means Iceberg metadata operations are slower (network round-trip) but more portable.
-- **Iceberg time travel via snapshot IDs vs DuckLake `AT VERSION`**: Both work, but Iceberg uses integer snapshot IDs while DuckLake uses version numbers. The overhead is comparable.
-- **Iceberg UPDATE/DELETE vs DuckLake**: Both use merge-on-read (create new Parquet files with modified rows). The overhead is similar.
-- **Iceberg snapshot listing**: Reads `metadata/vN.metadata.json` from S3; DuckLake queries local SQLite. Iceberg is slower for listing but doesn't require a database.
+- **Iceberg (S3 files) vs DuckLake (SQLite metadata)**: Iceberg writes Parquet files to S3 for every operation; DuckLake writes to local SQLite. Iceberg metadata operations are slower (network round-trip) but more portable.
+- **Iceberg time-travel via file listing vs DuckLake `AT VERSION`**: Both work, but Iceberg tracks snapshots as separate files while DuckLake uses version numbers. The overhead is comparable.
+- **Iceberg update/delete vs DuckLake**: Both create new Parquet files. Iceberg simulates this via additional COPY TO operations; DuckLake uses SQL INSERT.
+- **Iceberg snapshot listing**: Uses `glob('s3://bucket/data/**/*.parquet')` to list files; DuckLake queries local SQLite. Iceberg is slower for listing but doesn't require a database.
 
 ### What Iceberg Tests That Others Don't
 
 | Question | Answered By |
 |----------|-------------|
-| "Can this S3 system handle Iceberg metadata files?" | All Iceberg modes |
-| "How fast can Iceberg create snapshots on this storage?" | `snapshots` mode |
-| "What's the cost of time travel with file-based metadata?" | `time-travel` mode |
-| "Can this system handle concurrent Iceberg writers?" | `heavy` mode |
-| "How fast can Iceberg detect changes between snapshots?" | `change-detection` mode |
+| "Can this S3 system handle multiple small Parquet files?" | All Iceberg modes |
+| "How fast can this system create and list snapshot files?" | `snapshots` mode |
+| "What's the cost of reading historical data?" | `time-travel` mode |
+| "Can this system handle concurrent Parquet writers?" | `heavy` mode |
+| "How fast can this system diff two file sets?" | `change-detection` mode |
 
-The Iceberg benchmark answers: **"How well does this S3 storage system support the industry-standard Iceberg table format with file-based metadata management?"**
+The Iceberg benchmark answers: **"How well does this S3 storage system support Iceberg-style file-based data patterns?"**
 
 ### Known Limitations
 
