@@ -19,9 +19,9 @@ uv run python generate-data.py --size all --files 100
 uv run python generate_data_parquet.py --size all --files 100
 
 # 3 — start a target cluster (pick one)
-docker compose -f docker-compose-minio.yml   up -d
-docker compose -f docker-compose-rustfs.yml  up -d
-docker compose -f docker-compose-librefs.yml up -d
+docker compose -f docker/docker-compose-minio.yml   up -d
+docker compose -f docker/docker-compose-rustfs.yml  up -d
+docker compose -f docker/docker-compose-librefs.yml up -d
 
 # 4 — run the benchmarks
 uv run python benchmark_duckdb.py   --target minio --mode mixed  --sizes 1mb,32mb --runs 3

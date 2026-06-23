@@ -33,6 +33,7 @@ build/
 *.pdf
 *.docx
 *.doc
+s3_benchmark_report.docx
 
 # Temp files
 _*.py
