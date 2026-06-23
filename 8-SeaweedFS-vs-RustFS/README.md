@@ -1,4 +1,4 @@
-# Workshop #8 — S3-Compatible Object Storage Benchmark
+# S3-Compatible Object Storage Benchmark
 
 > **Author:** Mojtaba Banaie · [linkedin.com/in/smbanaie/](https://www.linkedin.com/in/smbanaie/)
 > **Date:** June 2026 · [github.com/sepahram-school/workshops](https://github.com/sepahram-school/workshops)
@@ -12,16 +12,15 @@ A reproducible, multi-engine benchmark comparing **MinIO**, **RustFS**, and **li
 ```bash
 # 1 — clone & enter
 git clone https://github.com/sepahram-school/workshops
-cd workshops/8-SeaweedFS-vs-RustFS
+cd workshops/workshop-08
 
-# 2 — generate test data (Parquet + binary)
-uv run python generate-data.py --size all --files 100
+# 2 — generate test data (Parquet)
 uv run python generate_data_parquet.py --size all --files 100
 
 # 3 — start a target cluster (pick one)
-docker compose -f docker/docker-compose-minio.yml   up -d
-docker compose -f docker/docker-compose-rustfs.yml  up -d
-docker compose -f docker/docker-compose-librefs.yml up -d
+docker compose -f docker-compose-minio.yml   up -d
+docker compose -f docker-compose-rustfs.yml  up -d
+docker compose -f docker-compose-librefs.yml up -d
 
 # 4 — run the benchmarks
 uv run python benchmark_duckdb.py   --target minio --mode mixed  --sizes 1mb,32mb --runs 3
@@ -148,7 +147,7 @@ uv run python benchmark_iceberg.py --target all   --mode heavy --heavy-duration 
 
 ## Production Findings
 
-### RustFS — Critical: RisingWave Hummock Failures
+### ⚠️ RustFS — Critical: RisingWave Hummock Failures
 
 RustFS caused **SSTable manifest corruption** in two independent RisingWave deployments, requiring full state recovery with data loss.
 
@@ -158,7 +157,7 @@ RustFS caused **SSTable manifest corruption** in two independent RisingWave depl
 
 > **Rule:** Do not use RustFS as a backend for RisingWave, Flink state, or Apache Paimon until its consistency guarantees are formally documented and verified.
 
-### MinIO + libreFS — Validated for Streaming
+### ✓ MinIO + libreFS — Validated for Streaming
 
 Both systems passed RisingWave Hummock validation. Their shared erasure-coding quorum model (write quorum across 3 nodes before ACK) naturally satisfies the read-after-write ordering Hummock requires.
 
@@ -168,7 +167,7 @@ Both systems passed RisingWave Hummock validation. Their shared erasure-coding q
 
 | Use Case | Recommended | Notes |
 |----------|-------------|-------|
-| Apache Iceberg data lake | **RustFS** | 2-8x lower latency across all Iceberg modes |
+| Apache Iceberg data lake | **RustFS** | 2–8x lower latency across all Iceberg modes |
 | DuckDB / Trino / Spark OLAP reads | **RustFS** | 61 MB/s, lowest variance |
 | Large Parquet batch writes (>32 MB) | **libreFS** | 28.8 MB/s, +42% over MinIO; profile P99 first |
 | Streaming ingestion (<5 MB files) | **RustFS** | 2x MinIO throughput on small objects |
@@ -187,11 +186,11 @@ Need RisingWave / ClickHouse S3 / stateful streaming?
             Do NOT use RustFS
 
 File size < 5 MB? (streaming ingest, Iceberg micro-commits)
-  └─ YES → RustFS  (2-3.5x faster writes, 3x faster Iceberg)
+  └─ YES → RustFS  (2–3.5x faster writes, 3x faster Iceberg)
 
 File size > 32 MB? (batch Spark, dbt exports, compaction)
   └─ YES → libreFS (28.8 MB/s, +42% over MinIO)
-            Profile P99 variance under sustained load first
+            ⚠ Profile P99 variance under sustained load first
 
 Need maximum concurrent throughput?
   └─ YES → MinIO  (29 MB/s aggregate heavy-mode; proven quorum)
@@ -205,32 +204,40 @@ Need WebUI + LDAP + AGPLv3 without AIStor?
 
 ---
 
-## Methodology Details
+## Methodology Notes
 
-See [`docx-appendix-methodology.md`](docx-appendix-methodology.md) for full methodology including:
-
-- Detailed explanation of all four benchmark designs
-- Architecture decisions and rationale
-- Result interpretation guide
-- Known limitations and fixes applied
-
-### Key Fixes Applied (from peer review)
+**Key fixes applied** (from peer review of `concerns.md`):
 
 | # | Fix |
 |---|-----|
-| 1 | Column-materializing queries instead of `COUNT(*)` — forces full Parquet page reads |
-| 3 | `DuckDBAdapter` — extensions loaded once, connection reused per worker thread |
-| 4 | Heavy-mode readers re-list S3 keys every 5s to discover fresh writes |
-| 5 | `LOAD httpfs` not `INSTALL httpfs` — no network download during benchmark |
-| 6 | `SET threads=1` per connection — prevents thread explosion |
-| 14 | DuckLake concurrent mode: per-worker SQLite metadata — tests S3, not SQLite WAL |
+| 1 | Column-materializing queries (`SELECT SUM(value), COUNT(*), MAX(ts)`) instead of `COUNT(*)` — forces full Parquet page reads |
+| 3 | `DuckDBAdapter` class — extensions loaded **once** at construction, connection reused per worker thread |
+| 4 | Heavy-mode readers re-list S3 keys every 5 seconds to discover fresh writes |
+| 5 | `LOAD httpfs` not `INSTALL httpfs` — httpfs is built-in; no network download during benchmark |
+| 6 | `SET threads=1` per DuckDB connection — prevents 20 Python × 16 DuckDB = 320 thread explosion |
+| 14 | DuckLake concurrent mode: per-worker SQLite metadata — tests S3 throughput, not SQLite WAL contention |
 
-### Known Limitations
+See the full report (`s3_benchmark_report.docx`) for all 19 fixes with rationale.
 
-- All tests on Docker loopback (`127.0.0.1`) — no real network latency
-- OS page cache warm on reads (Windows; `drop_caches` not available)
+**Known limitations:**
+- All tests run on Docker loopback (`127.0.0.1`) — no real network latency
+- OS page cache is warm on reads (Windows; `drop_caches` not available)
 - Write throughput includes Parquet CPU encoding overhead
-- SeaweedFS excluded this run (Docker Desktop port instability)
+- SeaweedFS excluded this run (Docker Desktop port instability) — planned for Workshop #9
+
+---
+
+## Result Files
+
+```
+results_duckdb/     — 41 files  (3 targets × modes × sizes × 3 runs)
+results_ducklake/   — 48 files  (3 targets × 6 modes × sizes × runs)
+results_iceberg/    — 117 files (3 targets × 9 modes × sizes × runs)
+────────────────────────────────────────────────
+Total               — 206 files
+```
+
+Each file is a JSON object: `{ mode, engine, threads, write: {...}, read: {...}, heavy: {...} }`.
 
 ---
 
@@ -239,7 +246,7 @@ See [`docx-appendix-methodology.md`](docx-appendix-methodology.md) for full meth
 ```
 Python  3.13+  via uv
 Docker  Desktop (or Docker Engine on Linux)
-duckdb          # httpfs + iceberg extensions bundled
+duckdb          # httpfs + ducklake extensions bundled
 boto3           # bucket lifecycle, object size queries
 ```
 
@@ -249,5 +256,5 @@ uv sync   # installs all dependencies from pyproject.toml
 
 ---
 
-*Full benchmark report with expert analysis: [`docx-appendix-methodology.md`](docx-appendix-methodology.md)*
+*Full benchmark report with expert analysis: `s3_benchmark_report.docx`*
 *Workshop series: [github.com/sepahram-school/workshops](https://github.com/sepahram-school/workshops)*
