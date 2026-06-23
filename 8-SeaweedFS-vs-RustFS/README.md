@@ -223,8 +223,15 @@ See the full report (`s3_benchmark_report.docx`) for all 19 fixes with rationale
 - All tests run on Docker loopback (`127.0.0.1`) — no real network latency
 - OS page cache is warm on reads (Windows; `drop_caches` not available)
 - Write throughput includes Parquet CPU encoding overhead
-- SeaweedFS excluded this run (Docker Desktop port instability) — planned for Workshop #9
+- SeaweedFS excluded this run, We actually tested SeaweedFS alongside MinIO, RustFS, and libreFS across four benchmark engines (boto3, DuckDB, DuckLake, Iceberg). Here's what we found:
 
+  1. **SeaweedFS does excel at small files**, lowest read/write latency for 1MB files (P50: 0.133s read, 0.275s write). The append-only blob store design is genuinely fast for small objects.
+
+  2. **5-thread concurrency limit,**  Every S3 write requires a round-trip to the master for volume assignment (`S3 gateway → filer → master → volume node`). At 20 concurrent threads, the master serializes all assignments and connections hit gRPC deadline timeouts. We documented this in detail , it's inherent to the 4-hop architecture, not a bug.
+
+  3. **Sustained load degrades performance,** The gRPC connection pool in the filer layer requires cluster restart between sustained write batches. We had to restart between benchmark modes to get clean results.
+
+  4. **Multipart upload overhead,** Each part of a multipart upload requires a separate `assign volume` RPC. For streaming ingestion workloads (RisingWave Hummock, etc.), this creates a bottleneck that we observed in production deployments.
 ---
 
 ## Result Files
