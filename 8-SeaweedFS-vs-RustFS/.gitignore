@@ -28,7 +28,7 @@ build/
 
 # Lock files
 *.lock
-
+*.tmp
 # Documents (not source code)
 
 *.docx
