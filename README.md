@@ -53,5 +53,7 @@ git pull
 | 4        | [4-MV-Considerations](4-MV-Considerations)                             | **Published** | Understanding ClickHouse materialized views and handling duplicate data issues | ClickHouse, Kafka, Redpanda |
 | 5        | [5-RisingWave-Workshop](5-RisingWave-Workshop)                         | **Published** | Building real-time streaming pipelines with RisingWave using pure SQL | RisingWave, Kafka, Redpanda, ClickHouse, PostgreSQL, RustFS |
 | 6        | [ADBC Performance Comparison](6-ADBC-Performance-Comparison)           | **Published** | Benchmarking ADBC (Arrow Database Connectivity) vs psycopg3 under 20 concurrent threads on PostgreSQL 18 | PostgreSQL, ADBC, psycopg3, Apache Arrow |
+| 7        | [Temporal](7-Temporal)                                                 | **Published** | Two-part hands-on workshop on workflow orchestration with Temporal — from basic Stock Exchange pipelines to production patterns (Saga, retries, signals, versioning) | Temporal, Python |
+| 8        | [MinIO vs LibreFS vs RustFS](8-MinIO-vs-LibreFS-vs-RustFS)           | **Published** | Reproducible multi-engine benchmark comparing S3-compatible object stores (MinIO, RustFS, libreFS) across DuckDB, DuckLake, and Iceberg analytical workloads | MinIO, RustFS, libreFS, DuckDB, Python, Docker |
 
 ---
